@@ -21,7 +21,7 @@ class InvNetConfig(argparse.Namespace):
         parser.add_argument('--validset_path', default='./datasets/circle/valid_toyShape_3Ch_128.h5',
                             help='Valid dataset path')
         parser.add_argument('--output_path', required=True, help='output directory')
-        parser.add_argument('--gpu', default='cuda', help='Selecting the gpu')
+        parser.add_argument('--gpu', default=0, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=32, help='Batch size for training')
         parser.add_argument('--critic_iter', default=5, help='Number of iter for descriminator')
         parser.add_argument('--proj_iter', default=5, help='Number of iteration for projection update.')

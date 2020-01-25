@@ -177,7 +177,7 @@ def gen_rand_noise():
     return noise
 
 cuda_available = torch.cuda.is_available()
-device = torch.device(config.gpu if cuda_available else "cpu")
+device = torch.device("cuda" if cuda_available else "cpu")
 fixed_noise = gen_rand_noise() 
 
 if not os.path.exists(OUTPUT_PATH):
