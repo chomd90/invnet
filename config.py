@@ -16,9 +16,9 @@ class InvNetConfig(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("InvNet config")
         parser.add_argument('--dataset', required=True, default='circle', help='circle / polycrystalline')
-        parser.add_argument('--trainset_path', default='./datasets/circle/train_toyShape_3Ch_128.h5',
+        parser.add_argument('--trainset_path', default='./datasets/circle/train_toyCircle_3Ch_128.h5',
                             help='Train dataset path')
-        parser.add_argument('--validset_path', default='./datasets/circle/valid_toyShape_3Ch_128.h5',
+        parser.add_argument('--validset_path', default='./datasets/circle/valid_toyCircle_3Ch_128.h5',
                             help='Valid dataset path')
         parser.add_argument('--output_path', required=True, help='output directory')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')

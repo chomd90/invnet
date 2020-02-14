@@ -3,7 +3,6 @@
 __pycache__
 datasets
 Images
-*.ipynb
 *.npy
 log.*
 output
