@@ -24,7 +24,8 @@ Pytorch implementation of WGAN-GP with a projection operator.
 
 ## Dataset
 
-* We will include the link for the dataset for our experiments.
+* This is the toy example dataset. You can use "train_toyCircle_3Ch_128.h5" dataset for the training. 
+* https://drive.google.com/drive/folders/1eQCZtni4UvilOI4-nQHBhRQyMvTpOizN?usp=sharing
 
 ## Testing
 During the implementation of this model, we built a test module to compare the result between original model (Tensorflow) and our model (Pytorch) for every layer we implemented. It is available at [compare-tensorflow-pytorch](https://github.com/jalola/compare-tensorflow-pytorch)
