@@ -27,7 +27,7 @@ DATA_DIR = config.trainset_path
 VAL_DIR = config.validset_path
 
 IMAGE_DATA_SET = config.dataset
-torch.cuda.set_device(config.gpu)
+# torch.cuda.set_device(config.gpu)
 
 def load_dim(path_to_folder):
     """
@@ -211,7 +211,7 @@ mone = mone.to(device)
 writer = SummaryWriter()
 #Reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
 def train():
-    dataloader = training_data_loader() 
+    dataloader = training_data_loader()
     dataiter = iter(dataloader)
     for iteration in range(START_ITER, END_ITER):
         start_time = time.time()

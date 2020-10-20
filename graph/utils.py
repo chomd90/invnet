@@ -52,16 +52,42 @@ def gen_rand_noise(batch_size):
     return noise
 
 
-def load_data():
+def load_data(batch_size):
+
+
+
     data_transform = transforms.Compose([
         transforms.Resize(64),
         transforms.CenterCrop(64),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        transforms.Normalize(mean=[0.5], std=[0.5])
     ])
-    dataset = datasets.ImageFolder(root='/Users/kellymarshall/PycharmProjects/didyprog/files/MNIST/processed',
-                                   transform=data_transform)
 
-    dataset_loader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True,
-                                                 pin_memory=True)
-    return dataset_loader
+    mnist_data=datasets.MNIST('/Users/kellymarshall/PycharmProjects/graph_invnet/files/',download=True,transform=data_transform)
+    train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
+    return train_loader
+
+
+def generate_image(netG, batch_size,conditional,noise=None, lv=None):
+    if noise is None:
+        noise = gen_rand_noise(batch_size)
+    if conditional:
+        if lv is None:
+            # locationX and locationY randomly picks the centroid of the generated circles for the tensorboard.
+            # radius is calculated based on the area of the circle.
+            # using the conversion with (1/DIM)^2 * pi * r^2 = "normalized area",
+            # 'r' is based on the unit of pixel.
+            length=torch.rand(batch_size)*10
+            lv = length
+            lv = lv.to(device)
+    else:
+        lv = None
+    with torch.no_grad():
+        noisev = noise
+        lv_v = lv
+    samples = netG(noisev, lv_v)
+    samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
+    samples = (samples * 255 / (CATEGORY))
+    return samples
+
+
