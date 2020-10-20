@@ -3,10 +3,9 @@ from torch.autograd import grad
 import torch
 
 
-DIM=128
-NUM_CIRCLE = 2
-CATEGORY = NUM_CIRCLE + 1
-OUTPUT_DIM = DIM*DIM*CATEGORY
+DIM=int(128)
+CATEGORY = 1
+OUTPUT_DIM = DIM*DIM
 
 class MyConvo2d(nn.Module):
     def __init__(self, input_dim, output_dim, kernel_size, he_init = True,  stride = 1, bias = True):
@@ -183,13 +182,13 @@ class GoodGenerator(nn.Module):
         self.rb5 = ResidualBlock(1*self.dim, 1*self.dim, 3, resample = 'up')
         self.bn  = nn.BatchNorm2d(self.dim)
 
-        self.conv1 = MyConvo2d(1*self.dim, CATEGORY, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
+        self.conv1 = MyConvo2d(1*self.dim, 1, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
         self.relu = nn.ReLU()
         #self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax2d()
 
-    def forward(self, input, lv):
+    def forward(self, input,lv):
         if lv is not None:
             input = torch.cat([input, lv], dim=1)
         output = self.ln1(input.contiguous())
@@ -202,9 +201,13 @@ class GoodGenerator(nn.Module):
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
+        print('final output shape:',output.size())
         # output = self.sigmoid(output)
         output = self.softmax(output)
+        print('softmaxxed final shape:',output.size())
+        print('output dim:',self.output_dim)
         output = output.view(-1, self.output_dim)
+        print('viewed output:',output.size())
         return output
 
 class GoodDiscriminator(nn.Module):
@@ -213,7 +216,7 @@ class GoodDiscriminator(nn.Module):
 
         self.dim = dim
 
-        self.conv1 = MyConvo2d(CATEGORY, self.dim, 3, he_init = False)
+        self.conv1 = MyConvo2d(1, self.dim, 3, he_init = False)
         self.rb1 = ResidualBlock(self.dim, 2*self.dim, 3, resample = 'down', hw=DIM)
         self.rb2 = ResidualBlock(2*self.dim, 4*self.dim, 3, resample = 'down', hw=int(DIM/2))
         self.rb3 = ResidualBlock(4*self.dim, 8*self.dim, 3, resample = 'down', hw=int(DIM/4))
@@ -222,7 +225,7 @@ class GoodDiscriminator(nn.Module):
 
     def forward(self, input):
         output = input.contiguous()
-        output = output.view(-1, CATEGORY, DIM, DIM)
+        output = output.view(-1,1, DIM, DIM)
         output = self.conv1(output)
         output = self.rb1(output)
         output = self.rb2(output)

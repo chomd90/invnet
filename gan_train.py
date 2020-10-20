@@ -108,6 +108,7 @@ def load_data(path_to_folder):
                  transforms.ToTensor(),
                  transforms.Normalize(mean=[0.5, 0.5, 0.5],std=[0.5, 0.5, 0.5])
                 ])
+
     if IMAGE_DATA_SET == 'matsci':
         dataset = MatSciDataset(path_to_folder)
     elif IMAGE_DATA_SET == 'circle':
@@ -115,6 +116,7 @@ def load_data(path_to_folder):
     else:
         dataset = datasets.ImageFolder(root=path_to_folder,transform=data_transform)
     dataset_loader = torch.utils.data.DataLoader(dataset,batch_size=BATCH_SIZE, shuffle=True, drop_last=True, pin_memory=True)
+    print(next(iter(dataset_loader)).shape)
     return dataset_loader
 
 def training_data_loader():

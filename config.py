@@ -16,14 +16,14 @@ class InvNetConfig(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("InvNet config")
         parser.add_argument('--dataset', required=True, default='circle', help='circle / polycrystalline')
-        parser.add_argument('--trainset_path', default='./datasets/circle/train_toyCircle_3Ch_128.h5',
+        parser.add_argument('--trainset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/train_toyCircle_3Ch_128.h5',
                             help='Train dataset path')
-        parser.add_argument('--validset_path', default='./datasets/circle/valid_toyCircle_3Ch_128.h5',
+        parser.add_argument('--validset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/valid_toyCircle_3Ch_128.h5',
                             help='Valid dataset path')
         parser.add_argument('--lr',default=01e-04)
         parser.add_argument('--output_path', required=True, help='output directory')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')
-        parser.add_argument('--batch_size', default=32, help='Batch size for training')
+        parser.add_argument('--batch_size', default=2, help='Batch size for training')
         parser.add_argument('--critic_iter', default=5, help='Number of iter for descriminator')
         parser.add_argument('--proj_iter', default=5, help='Number of iteration for projection update.')
         parser.add_argument('--end_iter', default=100000, help='How many iterations to train for.')

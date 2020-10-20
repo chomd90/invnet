@@ -14,7 +14,7 @@ from timeit import default_timer as timer
 from matscidata import MatSciDataset
 from fixedcircledata import CircleDataset
 import torch.nn.init as init
-from graph.utils import weights_init,calc_gradient_penalty,gen_rand_noise,load_data,generate_image
+from graph.utils import weights_init,calc_gradient_penalty,gen_rand_noise,load_data,generate_image,training_data_loader,val_data_loader,proj_loss
 from image_generation.sp_layer import SPLayer
 
 layer=SPLayer()
@@ -55,26 +55,6 @@ PJ_ITERS = config.proj_iter
 
 sp_layer=SPLayer()
 
-
-
-
-def proj_loss(fake_data, real_data):
-    """
-    Fake data requires to be pushed from tanh range to [0, 1]
-    """
-    x_fake, y_fake = centroid_fn(fake_data)
-    x_real, y_real = centroid_fn(real_data)
-    centerError = torch.norm(C * x_fake - C * x_real) + torch.norm(C * y_fake - C * y_real)
-    # radiusError = torch.abs(p1_fn(fake_data) - p1_fn(real_data))
-    radiusError = torch.norm((p1_fn(fake_data) - p1_fn(real_data)))
-    return centerError + radiusError
-
-def training_data_loader():
-    return load_data(BATCH_SIZE)
-
-def val_data_loader():
-    return load_data(BATCH_SIZE)
-
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
 fixed_noise = gen_rand_noise(BATCH_SIZE)
@@ -86,11 +66,12 @@ if RESTORE_MODE:
     aG = torch.load(OUTPUT_PATH + "generator.pt")
     aD = torch.load(OUTPUT_PATH + "discriminator.pt")
 else:
+    print('DIM and DIMMER:',DIM*DIM)
     if CONDITIONAL:
-        aG = GoodGenerator(64, DIM * DIM * CATEGORY, ctrl_dim=NUM_CIRCLE + 4)  # +4 for the centroid.
+        aG = GoodGenerator(64, int(DIM * DIM), ctrl_dim=10)  # +4 for the centroid.
         aD = GoodDiscriminator(64)
     else:
-        aG = GoodGenerator(64, DIM * DIM * CATEGORY, ctrl_dim=0)
+        aG = GoodGenerator(64, int(DIM * DIM), ctrl_dim=10)
         aD = GoodDiscriminator(64)
 aG.apply(weights_init)
 aD.apply(weights_init)
@@ -123,6 +104,7 @@ def generator_update(aG, aD, real_data,optimizer_g):
         fake_data = aG(noise, real_p1)
         gen_cost = aD(fake_data)
         gen_cost = gen_cost.mean()
+        gen_cost = gen_cost.view((1))
         gen_cost.backward(mone)
         gen_cost = -gen_cost
 
@@ -145,7 +127,7 @@ def projection_update(aG,real_data,real_p1,optimizer_pj):
     return pj_cost
 
 
-def critic_update(aG,aD,optimizer_d,batch,iteration):
+def critic_update(aG,aD,optimizer_d,real_data,iteration):
     for p in aD.parameters():  # reset requires_grad
         p.requires_grad_(True)  # they are set to False below in training G
     for i in range(CRITIC_ITERS):
@@ -158,27 +140,26 @@ def critic_update(aG,aD,optimizer_d,batch,iteration):
         noise = gen_rand_noise(BATCH_SIZE)
 
         # batch = batch[0] #batch[1] contains labels
-        real_data = batch.to(device)  # TODO: modify load_data for each loading
+        real_images = real_data[0].to(device)  # TODO: modify load_data for each loading
         # real_p1.to(device)
         with torch.no_grad():
             noisev = noise  # totally freeze G, training D
             if CONDITIONAL:
-                x_real, y_real = centroid_fn(real_data)
-                x_real, y_real = x_real * C, y_real * C
-                real_p1 = torch.cat((x_real, y_real, p1_fn(real_data)), dim=1)
-                real_p1 = real_p1.to(device)
+                real_class = F.one_hot(torch.tensor(real_data[1]), num_classes=10)
+                real_class = real_class.float()
+                real_p1 = real_class.to(device)
             else:
                 real_p1 = None
-        end = timer();
+        end = timer()
         print(f'---gen G elapsed time: {end - start}')
         start = timer()
         fake_data = aG(noisev, real_p1).detach()
-        end = timer();
+        end = timer()
         print(f'---load real imgs elapsed time: {end - start}')
         start = timer()
 
         # train with real data
-        disc_real = aD(real_data)
+        disc_real = aD(real_images)
         disc_real = disc_real.mean()
 
         # train with fake data
@@ -186,7 +167,7 @@ def critic_update(aG,aD,optimizer_d,batch,iteration):
         disc_fake = disc_fake.mean()
 
         # train with interpolates data
-        gradient_penalty = calc_gradient_penalty(aD, real_data, fake_data, BATCH_SIZE, LAMBDA)
+        gradient_penalty = calc_gradient_penalty(aD, real_images, fake_data, BATCH_SIZE, LAMBDA)
 
         # final disc cost
         disc_cost = disc_fake - disc_real + gradient_penalty
@@ -228,22 +209,19 @@ def train():
 
         gen_cost = None
         real_data,dataiter=sample(dataiter,dataloader)
-        print('real data:',len(real_data))
-        print(real_data[0].shape)
-        print(real_data[1])
         gen_cost,real_p1=generator_update(aG, aD, real_data,optimizer_g)
 
         end = timer()
-        if CONDITIONAL:
-            # Projection steps
-            pj_cost=projection_update(aG,real_data,real_p1,optimizer_pj)
-            writer.add_scalar('data/p1_cost', pj_cost.cpu().detach(), iteration)
+        # if CONDITIONAL:
+        #     # Projection steps
+        #     pj_cost=projection_update(aG,real_data,real_p1,optimizer_pj)
+        #     writer.add_scalar('data/p1_cost', pj_cost.cpu().detach(), iteration)
         # ---------------------TRAIN D------------------------
         batch = next(dataiter, None)
         if batch is None:
             dataiter = iter(dataloader)
             batch = dataiter.next()
-        w_dist,disc_cost=critic_update(aG,aD,optimizer_d,batch)
+        w_dist,disc_cost=critic_update(aG,aD,optimizer_d,batch,iteration)
 
         # ---------------VISUALIZATION---------------------
         writer.add_scalar('data/gen_cost', gen_cost, iteration)

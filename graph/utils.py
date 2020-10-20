@@ -2,10 +2,13 @@ import torch.nn.init as init
 from models.wgan import *
 from torch import autograd
 from torchvision import transforms, datasets
+from config import InvNetConfig
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
 
+config=InvNetConfig()
+BATCH_SIZE=config.batch_size
 
 def weights_init(m):
     if isinstance(m, MyConvo2d):
@@ -57,14 +60,16 @@ def load_data(batch_size):
 
 
     data_transform = transforms.Compose([
-        transforms.Resize(64),
-        transforms.CenterCrop(64),
+        transforms.Resize(128),
+        # transforms.CenterCrop(64),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
     ])
 
     mnist_data=datasets.MNIST('/Users/kellymarshall/PycharmProjects/graph_invnet/files/',download=True,transform=data_transform)
     train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
+    images,_=next(iter(train_loader))
+    print('image shape:',images.shape)
     return train_loader
 
 
@@ -90,4 +95,20 @@ def generate_image(netG, batch_size,conditional,noise=None, lv=None):
     samples = (samples * 255 / (CATEGORY))
     return samples
 
+def proj_loss(fake_data, real_data):
+    """
+    Fake data requires to be pushed from tanh range to [0, 1]
+    """
+    x_fake, y_fake = centroid_fn(fake_data)
+    x_real, y_real = centroid_fn(real_data)
+    centerError = torch.norm(C * x_fake - C * x_real) + torch.norm(C * y_fake - C * y_real)
+    # radiusError = torch.abs(p1_fn(fake_data) - p1_fn(real_data))
+    radiusError = torch.norm((p1_fn(fake_data) - p1_fn(real_data)))
+    return centerError + radiusError
+
+def training_data_loader():
+    return load_data(BATCH_SIZE)
+
+def val_data_loader():
+    return load_data(BATCH_SIZE)
 

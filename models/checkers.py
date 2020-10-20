@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 PI = 3.1415
-DIM = 64.0
+DIM = 128
 SCALE = 255.0
 FIXED_CIRCLE = False
 
@@ -14,9 +14,9 @@ FIXED_CIRCLE = False
 class CentroidFunction(torch.nn.Module):
     def __init__(self, bs, ch, sx, sy):
         super(CentroidFunction, self).__init__()
-        self.x_lin = torch.nn.Parameter(torch.linspace(0, sx, sx).expand(bs, ch, sx, sy)).requires_grad_(False).cuda()
+        self.x_lin = torch.nn.Parameter(torch.linspace(0, sx, sx).expand(bs, ch, sx, sy)).requires_grad_(False)#.cuda()
         self.y_lin = torch.nn.Parameter(torch.linspace(0, sy, sy).expand(bs, ch, sy, sx).transpose(2, 3)
-                                        ).requires_grad_(False).cuda()
+                                        ).requires_grad_(False)#.cuda()
 
     def forward(self, img_batch):
         img_batch = img_batch[:, 0:-1, ...]     # Dropping the very last channel.
