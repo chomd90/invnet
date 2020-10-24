@@ -2,9 +2,9 @@
 #
 #SBATCH --verbose
 #SBATCH -p gpu
-#SBATCH --job-name=pearl_cheetah
-#SBATCH --output=pearl_cheetah%j.out
-#SBATCH --error=pearl_cheetah%j.err
+#SBATCH --job-name=invnet
+#SBATCH --output=out/invnet%j.out
+#SBATCH --error=out/invnet%j.err
 #SBATCH --time=48:00:00
 #SBATCH --nodes=1
 #SBATCH --mem=16GB
@@ -17,4 +17,4 @@ module load cuda/9.0
 source activate venvs
 
 
-python /gpfsnyu/home/km3888/oyster/launch_experiment.py 0 /gpfsnyu/home/km3888/oyster/configs/cheetah-dir.json
+python /home/km3888/graph_invnet --output_path './output_dir'

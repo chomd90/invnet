@@ -71,7 +71,7 @@ class InvNet:
         for p in self.D.parameters():
             p.requires_grad_(False)
 
-        real_data=self.sample()
+        real_data= self.sample()
         real_class = F.one_hot(torch.tensor(real_data[1]), num_classes=10)
         real_class = real_class.float()
         real_p1 = real_class.to(self.device)
@@ -80,7 +80,7 @@ class InvNet:
         for i in range(1):
             print("Generator iters: " + str(i))
             self.G.zero_grad()
-            noise = gen_rand_noise(self.batch_size)
+            noise = gen_rand_noise(self.batch_size).to(device)
             noise.requires_grad_(True)
             fake_data = self.G(noise, real_p1)
             gen_cost = self.D(fake_data)
@@ -94,8 +94,6 @@ class InvNet:
         return gen_cost, real_p1
 
     def critic_update(self):
-        real_data=self.sample()
-        batch_size = real_data[0].shape[0]
         for p in self.D.parameters():  # reset requires_grad
             p.requires_grad_(True)  # they are set to False below in training G
         for i in range(self.critic_iters):
@@ -103,9 +101,9 @@ class InvNet:
 
             start = timer()
             self.D.zero_grad()
-
+            real_data = self.sample()
             # gen fake data and load real data
-            noise = gen_rand_noise(batch_size).to(self.device)
+            noise = gen_rand_noise(self.batch_size).to(self.device)
 
             # batch = batch[0] #batch[1] contains labels
             real_images = real_data[0].to(self.device)
