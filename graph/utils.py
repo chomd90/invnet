@@ -69,7 +69,6 @@ def load_data(batch_size):
     mnist_data=datasets.MNIST('/Users/kellymarshall/PycharmProjects/graph_invnet/files/',download=True,transform=data_transform)
     train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
     images,_=next(iter(train_loader))
-    print('image shape:',images.shape)
     return train_loader
 
 

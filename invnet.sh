@@ -14,7 +14,7 @@
 
 module load anaconda3
 module load cuda/9.0
-source activate rl
+source activate venvs
 
 
 python /gpfsnyu/home/km3888/oyster/launch_experiment.py 0 /gpfsnyu/home/km3888/oyster/configs/cheetah-dir.json

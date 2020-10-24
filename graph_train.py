@@ -24,6 +24,7 @@ DATA_DIR = config.trainset_path
 VAL_DIR = config.validset_path
 
 IMAGE_DATA_SET = config.dataset
+CONDITIONAL=True
 # torch.cuda.set_device(config.gpu)
 
 if len(DATA_DIR) == 0:
@@ -50,13 +51,14 @@ BATCH_SIZE = config.batch_size
 
 END_ITER = config.end_iter  # How many iterations to train for
 LAMBDA = config.lambda_gp  # Gradient penalty lambda hyperparameter
-OUTPUT_DIM = DIM * DIM  # Number of pixels in each image
+OUTPUT_DIM = DIM * DIM  # Number of pixels in each imag
 PJ_ITERS = config.proj_iter
 
 sp_layer=SPLayer()
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
+
 fixed_noise = gen_rand_noise(BATCH_SIZE)
 
 if not os.path.exists(OUTPUT_PATH):
@@ -128,6 +130,7 @@ def projection_update(aG,real_data,real_p1,optimizer_pj):
 
 
 def critic_update(aG,aD,optimizer_d,real_data,iteration):
+    batch_size=real_data[0].shape[0]
     for p in aD.parameters():  # reset requires_grad
         p.requires_grad_(True)  # they are set to False below in training G
     for i in range(CRITIC_ITERS):
@@ -137,7 +140,7 @@ def critic_update(aG,aD,optimizer_d,real_data,iteration):
         aD.zero_grad()
 
         # gen fake data and load real data
-        noise = gen_rand_noise(BATCH_SIZE)
+        noise = gen_rand_noise(batch_size)
 
         # batch = batch[0] #batch[1] contains labels
         real_images = real_data[0].to(device)  # TODO: modify load_data for each loading
@@ -175,15 +178,14 @@ def critic_update(aG,aD,optimizer_d,real_data,iteration):
         w_dist = disc_fake - disc_real
 
         optimizer_d.step()
-        if i == CRITIC_ITERS - 1:
-            # ------------------VISUALIZATION----------
-            writer.add_scalar('data/disc_cost', disc_cost, iteration)
-            writer.add_scalar('data/disc_fake', disc_fake, iteration)
-            writer.add_scalar('data/disc_real', disc_real, iteration)
-            writer.add_scalar('data/gradient_pen', gradient_penalty, iteration)
-        end = timer();
-        print(f'---train D elapsed time: {end - start}')
-    return w_dist,disc_cost
+    # ------------------VISUALIZATION----------
+    writer.add_scalar('data/disc_cost', disc_cost, iteration)
+    writer.add_scalar('data/disc_fake', disc_fake, iteration)
+    writer.add_scalar('data/disc_real', disc_real, iteration)
+    writer.add_scalar('data/gradient_pen', gradient_penalty, iteration)
+    end = timer()
+    print(f'---train D elapsed time: {end - start}')
+    return w_dist,disc_cost,fake_data
 
 
 def sample(dataiter, dataloader):
@@ -207,7 +209,6 @@ def train():
         for p in aD.parameters():
             p.requires_grad_(False)  # freeze D
 
-        gen_cost = None
         real_data,dataiter=sample(dataiter,dataloader)
         gen_cost,real_p1=generator_update(aG, aD, real_data,optimizer_g)
 
