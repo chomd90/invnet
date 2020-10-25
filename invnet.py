@@ -73,7 +73,7 @@ class InvNet:
             p.requires_grad_(False)
 
         real_data= self.sample()
-        real_class = F.one_hot(torch.tensor(real_data[1]), num_classes=10)
+        real_class = F.one_hot(real_data[1], num_classes=10)
         real_class = real_class.float()
         real_p1 = real_class.to(self.device)
         mone = torch.FloatTensor([1]) * -1
