@@ -18,10 +18,11 @@ import sys
 
 class InvNet:
 
-    def __init__(self,batch_size,output_path,lr,critic_iters,proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
+    def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
         self.writer = SummaryWriter()
         self.device=device
 
+        self.data_dir=data_dir
         self.output_path=output_path
         if not os.path.exists(output_path):
             os.makedirs(output_path)
@@ -57,8 +58,7 @@ class InvNet:
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5], std=[0.5])
         ])
-        data_dir = '/home/km3888/graph_invnet/files/'
-        data_dir = '/Users/kellymarshall/PycharmProjects/graph_invnet/files/'
+        data_dir = self.data_dir
         mnist_data = datasets.MNIST(data_dir, download=True,
                                     transform=data_transform)
         train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
@@ -111,7 +111,7 @@ class InvNet:
             real_images = real_data[0].to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
-                real_class = F.one_hot(torch.tensor(real_data[1]), num_classes=10).to(self.device)
+                real_class = F.one_hot(real_data[1], num_classes=10).to(self.device)
                 real_class = real_class.float()
                 real_p1 = real_class.to(self.device)
             end = timer()
@@ -215,6 +215,7 @@ class InvNet:
             if iteration%10==0:
                 self.save(stats)
             lib.plot.tick()
+
 if __name__=='__main__':
     config=TestConfig()
     cuda_available = torch.cuda.is_available()
@@ -222,5 +223,5 @@ if __name__=='__main__':
 
     print('training on:',device)
     sys.stdout.flush()
-    invnet=InvNet(config.batch_size,config.output_path,config.lr,config.critic_iter,config.proj_iter,32*32,config.hidden_size,device,config.lambda_gp)
+    invnet=InvNet(config.batch_size,config.output_path,config.data_dir,config.lr,config.critic_iter,config.proj_iter,32*32,config.hidden_size,device,config.lambda_gp)
     invnet.train(100000)

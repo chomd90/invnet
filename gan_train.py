@@ -180,7 +180,7 @@ def gen_rand_noise():
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
-fixed_noise = gen_rand_noise() 
+fixed_noise = gen_rand_noise()
 
 if not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
