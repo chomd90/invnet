@@ -3,7 +3,7 @@ from torch.autograd import grad
 import torch
 
 
-DIM=int(128)
+DIM=int(32)
 CATEGORY = 1
 OUTPUT_DIM = DIM*DIM
 
@@ -180,9 +180,9 @@ class GoodGenerator(nn.Module):
         self.rb3 = ResidualBlock(4*self.dim, 2*self.dim, 3, resample = 'up')
         self.rb4 = ResidualBlock(2*self.dim, 1*self.dim, 3, resample = 'up')
         self.rb5 = ResidualBlock(1*self.dim, 1*self.dim, 3, resample = 'up')
-        self.bn  = nn.BatchNorm2d(self.dim)
+        self.bn  = nn.BatchNorm2d(2*self.dim)
 
-        self.conv1 = MyConvo2d(1*self.dim, 1, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
+        self.conv1 = MyConvo2d(2*self.dim, 1, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
         self.relu = nn.ReLU()
         #self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
@@ -196,18 +196,17 @@ class GoodGenerator(nn.Module):
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        output = self.rb4(output)
-        output = self.rb5(output)
+        # output = self.rb4(output)
+        # print('output 4 shape:', output.shape)
+        # output = self.rb5(output)
+        # print('output 5 shape:', output.shape)
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
-        print('final output shape:',output.size())
         # output = self.sigmoid(output)
         output = self.softmax(output)
-        print('softmaxxed final shape:',output.size())
-        print('output dim:',self.output_dim)
         output = output.view(-1, self.output_dim)
-        print('viewed output:',output.size())
+
         return output
 
 class GoodDiscriminator(nn.Module):
@@ -230,7 +229,8 @@ class GoodDiscriminator(nn.Module):
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        output = self.rb4(output)
+        # output = self.rb4(output)
+        # print('input 4:',output.shape)
         output = output.view(-1, 4*4*8*self.dim)
         output = self.ln1(output)
         output = output.view(-1)

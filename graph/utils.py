@@ -1,9 +1,10 @@
 import torch.nn.init as init
+import torch.nn.functional as F
 from models.wgan import *
 from torch import autograd
 from torchvision import transforms, datasets
 from config import InvNetConfig
-
+import random
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
 
@@ -29,7 +30,7 @@ def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd):
     alpha = torch.rand(batch_size, 1)
     alpha = alpha.expand(batch_size, int(real_data.nelement() / batch_size)).contiguous()
 
-    alpha = alpha.view(batch_size, CATEGORY, DIM, DIM)
+    alpha = alpha.view(batch_size, 1, DIM, DIM)
     alpha = alpha.to(device)
 
     fake_data = fake_data.view(batch_size, CATEGORY, DIM, DIM)
@@ -49,7 +50,7 @@ def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd):
     return gradient_penalty
 
 def gen_rand_noise(batch_size):
-    noise = torch.randn(batch_size, 128)
+    noise = torch.randn((batch_size, 128))
     noise = noise.to(device)
 
     return noise
@@ -60,19 +61,20 @@ def load_data(batch_size):
 
 
     data_transform = transforms.Compose([
-        transforms.Resize(128),
+        transforms.Resize(32),
         # transforms.CenterCrop(64),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
     ])
 
-    mnist_data=datasets.MNIST('/Users/kellymarshall/PycharmProjects/graph_invnet/files/',download=True,transform=data_transform)
+    data_dir='/Users/kellymarshall/PycharmProjects/graph_invnet/files/'
+    mnist_data=datasets.MNIST(data_dira,download=True,transform=data_transform)
     train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
     images,_=next(iter(train_loader))
     return train_loader
 
 
-def generate_image(netG, batch_size,conditional,noise=None, lv=None):
+def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=None):
     if noise is None:
         noise = gen_rand_noise(batch_size)
     if conditional:
@@ -81,18 +83,20 @@ def generate_image(netG, batch_size,conditional,noise=None, lv=None):
             # radius is calculated based on the area of the circle.
             # using the conversion with (1/DIM)^2 * pi * r^2 = "normalized area",
             # 'r' is based on the unit of pixel.
-            length=torch.rand(batch_size)*10
-            lv = length
-            lv = lv.to(device)
+            digit=torch.randint(9,size=(batch_size,))
+            digit=F.one_hot(digit,num_classes=10).float()
+            lv = digit.to(device)
     else:
         lv = None
     with torch.no_grad():
         noisev = noise
         lv_v = lv
+    noisev=noisev.float()
+    if device is not None:
+        noisev=noisev.to(device)
     samples = netG(noisev, lv_v)
     samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
-    samples = (samples * 255 / (CATEGORY))
-    return samples
+    return samples.long()
 
 def proj_loss(fake_data, real_data):
     """

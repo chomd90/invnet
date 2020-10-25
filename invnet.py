@@ -10,15 +10,15 @@ import time
 import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-from config import InvNetConfig
+from config import *
 import libs as lib
 import libs.plot
 import numpy as np
+import sys
 
 class InvNet:
 
-    def __init__(self,batch_size,output_path,lr,critic_iters,proj_iters,output_dim,device,lambda_gp,restore_mode=False):
-
+    def __init__(self,batch_size,output_path,lr,critic_iters,proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
         self.writer = SummaryWriter()
         self.device=device
 
@@ -40,8 +40,8 @@ class InvNet:
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(64, self.output_dim, ctrl_dim=10).to(device)
-            self.D = GoodDiscriminator(64).to(device)
+            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=10).to(device)
+            self.D = GoodDiscriminator(hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
 
@@ -52,13 +52,14 @@ class InvNet:
 
     def load_data(self):
         data_transform = transforms.Compose([
-            transforms.Resize(128),
+            transforms.Resize(32),
             # transforms.CenterCrop(64),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5], std=[0.5])
         ])
-
-        mnist_data = datasets.MNIST('/Users/kellymarshall/PycharmProjects/graph_invnet/files/', download=True,
+        data_dir = '/home/km3888/graph_invnet/files/'
+        data_dir = '/Users/kellymarshall/PycharmProjects/graph_invnet/files/'
+        mnist_data = datasets.MNIST(data_dir, download=True,
                                     transform=data_transform)
         train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
 
@@ -77,6 +78,7 @@ class InvNet:
         real_p1 = real_class.to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
+
         for i in range(1):
             print("Generator iters: " + str(i))
             self.G.zero_grad()
@@ -189,10 +191,12 @@ class InvNet:
 
         lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
         lib.plot.flush()
-        gen_images = generate_image(self.G, self.fixed_noise)
-        torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
-                                     padding=2)
+        gen_images = generate_image(self.G, self.batch_size,noise=self.fixed_noise,device=self.device)
+        gen_images = gen_images.long()
+        # torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
+        #                              padding=2)
         grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
+        grid_images=grid_images.long()
         self.writer.add_image('images', grid_images, stats['iteration'])
 
         torch.save(self.G, self.output_path + 'generator.pt')
@@ -212,9 +216,11 @@ class InvNet:
                 self.save(stats)
             lib.plot.tick()
 if __name__=='__main__':
+    config=TestConfig()
     cuda_available = torch.cuda.is_available()
-    device = torch.device("cuda" if cuda_available else "cpu")
+    device = torch.device(config.gpu if cuda_available else "cpu")
 
-    config=InvNetConfig()
-    invnet=InvNet(config.batch_size,config.output_path,config.lr,config.critic_iter,config.proj_iter,128*128,device,config.lambda_gp)
-    invnet.train(1)
+    print('training on:',device)
+    sys.stdout.flush()
+    invnet=InvNet(config.batch_size,config.output_path,config.lr,config.critic_iter,config.proj_iter,32*32,config.hidden_size,device,config.lambda_gp)
+    invnet.train(100000)
