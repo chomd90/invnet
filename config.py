@@ -22,7 +22,7 @@ class InvNetConfig(argparse.Namespace):
                             help='Valid dataset path')
         parser.add_argument('--lr',default=01e-04)
         parser.add_argument('--output_path', required=True, help='output directory')
-        parser.add_argument('--data_dir', default='/home/km3888/graph_invnet/files/')
+        parser.add_argument('--data_dir', default='home/km3888/graph_invnet/files/')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=32, help='Batch size for training')
         parser.add_argument('--hidden_size', default=32, help='Hidden size used for generator and discriminator')

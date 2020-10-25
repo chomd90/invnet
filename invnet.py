@@ -56,7 +56,7 @@ class InvNet:
             transforms.Resize(32),
             # transforms.CenterCrop(64),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5])
+            transforms.Normalize(mean=[0.1307], std=[0.3801])
         ])
         data_dir = self.data_dir
         mnist_data = datasets.MNIST(data_dir, download=True,
@@ -76,19 +76,20 @@ class InvNet:
         real_class = F.one_hot(real_data[1], num_classes=10)
         real_class = real_class.float()
         real_p1 = real_class.to(self.device)
-        mone = torch.FloatTensor([1]) * -1
-        mone=mone.to(self.device)
+        # mone = torch.FloatTensor([1]) * -1
+        # mone=mone.to(self.device)
 
         for i in range(1):
-            print("Generator iters: " + str(i))
+            # print("Generator iters: " + str(i))
             self.G.zero_grad()
             noise = gen_rand_noise(self.batch_size).to(device)
             noise.requires_grad_(True)
             fake_data = self.G(noise, real_p1)
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
-            gen_cost = gen_cost.view((1))
-            gen_cost.backward(mone)
+            # gen_cost = gen_cost.view((1))
+            # gen_cost.backward(mone)
+            gen_cost.backward()
             gen_cost = -gen_cost
 
         self.optim_g.step()
@@ -99,7 +100,7 @@ class InvNet:
         for p in self.D.parameters():  # reset requires_grad
             p.requires_grad_(True)  # they are set to False below in training G
         for i in range(self.critic_iters):
-            print("Critic iter: " + str(i))
+            # print("Critic iter: " + str(i))
 
             start = timer()
             self.D.zero_grad()
@@ -115,11 +116,11 @@ class InvNet:
                 real_class = real_class.float()
                 real_p1 = real_class.to(self.device)
             end = timer()
-            print(f'---gen G elapsed time: {end - start}')
+            # print('---gen G elapsed time:', end - start)
             start = timer()
             fake_data = self.G(noisev, real_p1).detach()
             end = timer()
-            print(f'---load real imgs elapsed time: {end - start}')
+            # print('---load real imgs elapsed time:', end - start)
             start = timer()
 
             # train with real data
@@ -140,10 +141,11 @@ class InvNet:
 
             self.optim_d.step()
         end = timer()
-        print(f'---train D elapsed time: {end - start}')
+        print('---train D elapsed time:', end - start)
         stats={'w_dist': w_dist,
                'disc_cost':disc_cost,
                'fake_data':fake_data,
+               'real_data':real_data,
                'disc_real':disc_real,
                'disc_fake':disc_fake,
                'gradient_penalty':gradient_penalty}
@@ -155,6 +157,8 @@ class InvNet:
         except:
             self.dataiter = iter(self.train_loader)
             real_data = self.dataiter.next()
+        if real_data[0].shape[0]<self.batch_size:
+            real_data=self.sample()
         return real_data
 
     def log(self,stats):
@@ -195,15 +199,22 @@ class InvNet:
         gen_images = gen_images.long()
         # torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
         #                              padding=2)
-        grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
-        grid_images=grid_images.long()
-        self.writer.add_image('images', grid_images, stats['iteration'])
-
+        real_images=stats['real_data'][0]
+        # print('real images:',real_images.shape)
+        # for i in range(32):
+        #     print(real_images[:,:,i,:])
+        real_grid_images = torchvision.utils.make_grid(stats['real_data'][0][:4], nrow=8, padding=2)
+        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
+        real_grid_images=real_grid_images.long()
+        fake_grid_images = fake_grid_images.long()
+        self.writer.add_image('real images', real_grid_images, stats['iteration'])
+        self.writer.add_image('fake images',fake_grid_images,stats['iteration'])
         torch.save(self.G, self.output_path + 'generator.pt')
         torch.save(self.D, self.output_path + 'discriminator.pt')
 
     def train(self,iters):
         for iteration in range(iters):
+            print('iteration:',iteration)
             start_time=time.time()
 
             gen_cost,real_p1,=self.generator_update()
@@ -217,7 +228,7 @@ class InvNet:
             lib.plot.tick()
 
 if __name__=='__main__':
-    config=TestConfig()
+    config=InvNetConfig()
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
 
