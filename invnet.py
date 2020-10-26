@@ -182,19 +182,20 @@ class InvNet:
         fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
         self.writer.add_image('G/images', fake_2, stats['iteration'])
 
-        dev_disc_costs=[]
-        for _, images in enumerate(self.val_iter):
-            imgs = torch.Tensor(images[0])
-            imgs = imgs.to(device)
-            with torch.no_grad():
-                imgs_v = imgs
-
-            D = self.D(imgs_v)
-            _dev_disc_cost = -D.mean().cpu().data.numpy()
-            dev_disc_costs.append(_dev_disc_cost)
-
-        lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
-        lib.plot.flush()
+        # dev_disc_costs=[]
+        # for _, images in enumerate(self.val_iter):
+        #     imgs = torch.Tensor(images[0])
+        #     imgs = imgs.to(self.device)
+        #     with torch.no_grad():
+        #         imgs_v = imgs
+        #
+        #     D = self.D(imgs_v)
+        #     _dev_disc_cost = -D.mean().cpu().data.numpy()
+        #     print(_dev_disc_cost)
+        #     dev_disc_costs.append(_dev_disc_cost)
+        #     print(dev_disc_costs)
+        # lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
+        # lib.plot.flush()
         gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
         # torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
         #                              padding=2)
@@ -236,7 +237,8 @@ class InvNet:
 if __name__=='__main__':
     config=InvNetConfig()
 
-    torch.cuda.set_device(config.gpu)
+
+    # torch.cuda.set_device(config.gpu)
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
 
