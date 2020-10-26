@@ -9,3 +9,5 @@ output
 runs
 *.pt
 /nada/
+/files/
+/.idea/inspectionProfiles/
