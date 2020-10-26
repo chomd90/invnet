@@ -27,7 +27,7 @@ DATA_DIR = config.trainset_path
 VAL_DIR = config.validset_path
 
 IMAGE_DATA_SET = config.dataset
-torch.cuda.set_device(config.gpu)
+# torch.cuda.set_device(config.gpu)
 
 def load_dim(path_to_folder):
     """
@@ -108,6 +108,7 @@ def load_data(path_to_folder):
                  transforms.ToTensor(),
                  transforms.Normalize(mean=[0.5, 0.5, 0.5],std=[0.5, 0.5, 0.5])
                 ])
+
     if IMAGE_DATA_SET == 'matsci':
         dataset = MatSciDataset(path_to_folder)
     elif IMAGE_DATA_SET == 'circle':
@@ -115,6 +116,7 @@ def load_data(path_to_folder):
     else:
         dataset = datasets.ImageFolder(root=path_to_folder,transform=data_transform)
     dataset_loader = torch.utils.data.DataLoader(dataset,batch_size=BATCH_SIZE, shuffle=True, drop_last=True, pin_memory=True)
+    print(next(iter(dataset_loader)).shape)
     return dataset_loader
 
 def training_data_loader():
@@ -178,7 +180,7 @@ def gen_rand_noise():
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
-fixed_noise = gen_rand_noise() 
+fixed_noise = gen_rand_noise()
 
 if not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
@@ -211,7 +213,7 @@ mone = mone.to(device)
 writer = SummaryWriter()
 #Reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
 def train():
-    dataloader = training_data_loader() 
+    dataloader = training_data_loader()
     dataiter = iter(dataloader)
     for iteration in range(START_ITER, END_ITER):
         start_time = time.time()
@@ -281,7 +283,7 @@ def train():
                 dataiter = iter(dataloader)
                 batch = dataiter.next()
             #batch = batch[0] #batch[1] contains labels
-            real_data = batch.to(device) #TODO: modify load_data for each loading
+            real_data = batch.to(device)
             #real_p1.to(device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D

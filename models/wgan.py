@@ -3,10 +3,9 @@ from torch.autograd import grad
 import torch
 
 
-DIM=128
-NUM_CIRCLE = 2
-CATEGORY = NUM_CIRCLE + 1
-OUTPUT_DIM = DIM*DIM*CATEGORY
+DIM=int(32)
+CATEGORY = 1
+OUTPUT_DIM = DIM*DIM
 
 class MyConvo2d(nn.Module):
     def __init__(self, input_dim, output_dim, kernel_size, he_init = True,  stride = 1, bias = True):
@@ -96,7 +95,6 @@ class ResidualBlock(nn.Module):
             self.bn1 = nn.BatchNorm2d(input_dim)
             self.bn2 = nn.BatchNorm2d(output_dim)
         elif resample == None:
-            #TODO: ????
             self.bn1 = nn.BatchNorm2d(output_dim)
             self.bn2 = nn.LayerNorm([input_dim, hw, hw])
         else:
@@ -181,15 +179,15 @@ class GoodGenerator(nn.Module):
         self.rb3 = ResidualBlock(4*self.dim, 2*self.dim, 3, resample = 'up')
         self.rb4 = ResidualBlock(2*self.dim, 1*self.dim, 3, resample = 'up')
         self.rb5 = ResidualBlock(1*self.dim, 1*self.dim, 3, resample = 'up')
-        self.bn  = nn.BatchNorm2d(self.dim)
+        self.bn  = nn.BatchNorm2d(2*self.dim)
 
-        self.conv1 = MyConvo2d(1*self.dim, CATEGORY, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
+        self.conv1 = MyConvo2d(2*self.dim, 1, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
         self.relu = nn.ReLU()
         #self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax2d()
 
-    def forward(self, input, lv):
+    def forward(self, input,lv):
         if lv is not None:
             input = torch.cat([input, lv], dim=1)
         output = self.ln1(input.contiguous())
@@ -197,14 +195,17 @@ class GoodGenerator(nn.Module):
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        output = self.rb4(output)
-        output = self.rb5(output)
+        # output = self.rb4(output)
+        # output = self.rb5(output)
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
-        # output = self.sigmoid(output)
-        output = self.softmax(output)
+        output = self.sigmoid(output)
+        # print(output)
+        # output = self.softmax(output)
+        # print('softmax output:',output.mean())
         output = output.view(-1, self.output_dim)
+
         return output
 
 class GoodDiscriminator(nn.Module):
@@ -213,7 +214,7 @@ class GoodDiscriminator(nn.Module):
 
         self.dim = dim
 
-        self.conv1 = MyConvo2d(CATEGORY, self.dim, 3, he_init = False)
+        self.conv1 = MyConvo2d(1, self.dim, 3, he_init = False)
         self.rb1 = ResidualBlock(self.dim, 2*self.dim, 3, resample = 'down', hw=DIM)
         self.rb2 = ResidualBlock(2*self.dim, 4*self.dim, 3, resample = 'down', hw=int(DIM/2))
         self.rb3 = ResidualBlock(4*self.dim, 8*self.dim, 3, resample = 'down', hw=int(DIM/4))
@@ -222,12 +223,13 @@ class GoodDiscriminator(nn.Module):
 
     def forward(self, input):
         output = input.contiguous()
-        output = output.view(-1, CATEGORY, DIM, DIM)
+        output = output.view(-1,1, DIM, DIM)
         output = self.conv1(output)
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        output = self.rb4(output)
+        # output = self.rb4(output)
+        # print('input 4:',output.shape)
         output = output.view(-1, 4*4*8*self.dim)
         output = self.ln1(output)
         output = output.view(-1)

@@ -92,7 +92,6 @@ class ResidualBlock(nn.Module):
             self.bn1 = nn.BatchNorm2d(input_dim)
             self.bn2 = nn.BatchNorm2d(output_dim)
         elif resample == None:
-            #TODO: ????
             self.bn1 = nn.BatchNorm2d(output_dim)
             self.bn2 = nn.LayerNorm([input_dim, hw, hw])
         else:
