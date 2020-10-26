@@ -235,6 +235,8 @@ class InvNet:
 
 if __name__=='__main__':
     config=InvNetConfig()
+
+    torch.cuda.set_device(config.gpu)
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
 

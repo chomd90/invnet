@@ -128,4 +128,3 @@ if __name__=='__main__':
     p_edges,p_loc,p_idx=prune_graph(edges,loc_to_idx,idx_to_loc)
     plt.imshow(image)
     plt.show()
-

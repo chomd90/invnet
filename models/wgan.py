@@ -200,7 +200,7 @@ class GoodGenerator(nn.Module):
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
-        # output = self.sigmoid(output)
+        output = self.sigmoid(output)
         # print(output)
         # output = self.softmax(output)
         # print('softmax output:',output.mean())
