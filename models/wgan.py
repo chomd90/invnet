@@ -95,7 +95,6 @@ class ResidualBlock(nn.Module):
             self.bn1 = nn.BatchNorm2d(input_dim)
             self.bn2 = nn.BatchNorm2d(output_dim)
         elif resample == None:
-            #TODO: ????
             self.bn1 = nn.BatchNorm2d(output_dim)
             self.bn2 = nn.LayerNorm([input_dim, hw, hw])
         else:
@@ -197,14 +196,14 @@ class GoodGenerator(nn.Module):
         output = self.rb2(output)
         output = self.rb3(output)
         # output = self.rb4(output)
-        # print('output 4 shape:', output.shape)
         # output = self.rb5(output)
-        # print('output 5 shape:', output.shape)
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
         # output = self.sigmoid(output)
-        output = self.softmax(output)
+        # print(output)
+        # output = self.softmax(output)
+        # print('softmax output:',output.mean())
         output = output.view(-1, self.output_dim)
 
         return output

@@ -283,7 +283,7 @@ def train():
                 dataiter = iter(dataloader)
                 batch = dataiter.next()
             #batch = batch[0] #batch[1] contains labels
-            real_data = batch.to(device) #TODO: modify load_data for each loading
+            real_data = batch.to(device)
             #real_p1.to(device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D

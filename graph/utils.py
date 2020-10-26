@@ -94,10 +94,10 @@ def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=
     noisev=noisev.float()
     if device is not None:
         noisev=noisev.to(device)
-    samples = netG(noisev, lv_v)
-    samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
-    samples=samples*.3081+.1307
-    return samples.long()
+    samples = netG(noisev, lv_v).view((batch_size,1,DIM,DIM))
+    # samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
+    # samples=samples*.3081+.1307
+    return samples
 
 def proj_loss(fake_data, real_data):
     """

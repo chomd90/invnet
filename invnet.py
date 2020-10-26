@@ -49,7 +49,7 @@ class InvNet:
         self.optim_g = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
         self.optim_d = torch.optim.Adam(self.D.parameters(), lr=lr, betas=(0, 0.9))
 
-        self.fixed_noise=gen_rand_noise(self.batch_size)
+        self.fixed_noise=gen_rand_noise(4)
 
     def load_data(self):
         data_transform = transforms.Compose([
@@ -195,15 +195,21 @@ class InvNet:
 
         lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
         lib.plot.flush()
-        gen_images = generate_image(self.G, self.batch_size,noise=self.fixed_noise,device=self.device)
-        gen_images = gen_images.long()
+        gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
         # torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
         #                              padding=2)
+
+        # real_images=stats['real_data'][0] * .3081 + .1307
         real_images=stats['real_data'][0]
+        # print('real image mean:',real_images[:4].mean())
+        # print('fake image mean:',gen_images.mean())
+        # print('real image std:',real_images[:4].std())
+        # print('fake image std:',gen_images.std())
         # print('real images:',real_images.shape)
+        # assert(False)
         # for i in range(32):
         #     print(real_images[:,:,i,:])
-        real_grid_images = torchvision.utils.make_grid(stats['real_data'][0][:4], nrow=8, padding=2)
+        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
         fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
         real_grid_images=real_grid_images.long()
         fake_grid_images = fake_grid_images.long()

@@ -129,4 +129,3 @@ if __name__=='__main__':
     plt.imshow(image)
     plt.show()
 
-#TODO adapt graph-pruning code (and methods in this file generally) to work with adjacency map method

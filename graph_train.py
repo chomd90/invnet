@@ -143,7 +143,7 @@ def critic_update(aG,aD,optimizer_d,real_data,iteration):
         noise = gen_rand_noise(batch_size)
 
         # batch = batch[0] #batch[1] contains labels
-        real_images = real_data[0].to(device)  # TODO: modify load_data for each loading
+        real_images = real_data[0].to(device)
         # real_p1.to(device)
         with torch.no_grad():
             noisev = noise  # totally freeze G, training D
