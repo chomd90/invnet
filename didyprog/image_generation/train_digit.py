@@ -35,17 +35,19 @@ def train_image(image,lr,num_iters):
         if not i%10:
             grid = torchvision.utils.make_grid(image)
             writer.add_image('image', grid, global_step=i)
-
+        if not i%100:
+            plt.imshow(image)
+            plt.show()
         image+=lr*image_grad
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", type=float,default=01e-03)
-    parser.add_argument("--penalty_coeff",type=float,default=01e-01)
+    parser.add_argument("--n_iters",type=int,default=1000)
 
     args=parser.parse_args()
 
     image = get_cropped_image()
 
-
-    train_image(image,args.lr,args.penalty_coeff)
+    print(type(args.n_iters))
+    train_image(image,args.lr,args.n_iters)

@@ -21,7 +21,7 @@ class SPLayer:
              Shortest path value computed by hard-DP
             '''
         theta, loc_to_idx, idx_to_loc, adj_map, rev_map = make_graph(image)
-        v, E, Q, E_hat = sp_grad(theta, adj_map, rev_map)
+        v, E, Q, E_hat,q_hard = sp_grad(theta, adj_map, rev_map)
         return v,E,idx_to_loc
 
     def backward(self,image, E, idx_to_loc):
@@ -71,5 +71,5 @@ class SPLayer:
 
     def true_value(self,image):
         theta, loc_to_idx, idx_to_loc, adj_map, rev_map = make_graph(image)
-        v, E, Q, E_hat = sp_grad(theta, adj_map, rev_map,operator='hardmax')
+        v, E, Q, E_hat,Q_hard = sp_grad(theta, adj_map, rev_map,operator='hardmax')
         return v

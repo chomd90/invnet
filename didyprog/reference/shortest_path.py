@@ -27,15 +27,19 @@ def sp_grad(theta: np.ndarray,
                   operator: str='softmax')\
         ->Tuple[float,np.ndarray,np.ndarray,np.ndarray]:
     operator=operators[operator]
+    hard_operator=operators['hardmax']
     n_nodes=theta.shape[0]
     assert n_nodes>=1
     V=np.zeros((n_nodes+1))
+    V_hard=np.zeros((n_nodes+1))
     Q=np.zeros((n_nodes,2))
     E_hat=np.zeros((n_nodes+1))
     E = np.zeros((n_nodes, 2))
 
     V[-1]=float('inf')
     V[-2]=0
+    V_hard[-1]=float('inf')
+    V_hard[-2]=0
     for i in reversed(range(n_nodes-1)):
         idxs=adj_map[i]
         for p in range(len(idxs)):
@@ -46,7 +50,14 @@ def sp_grad(theta: np.ndarray,
         if np.isnan(V[i]):
             V[i]=float('inf')
             Q[i]=np.array([0]*2)
+
+        hard_options=V_hard[idxs]+theta[i,:]
+        V_hard[i],_=hard_operator.min(hard_options)
+        if np.isnan(V_hard[i]):
+            V_hard[i]=float('inf')
+
     v=V[0]
+    v_hard=V[0]
     E[0]=Q[0]
     E_hat[0]=1
     for i in range(1,n_nodes):
@@ -58,7 +69,7 @@ def sp_grad(theta: np.ndarray,
         if left_i is not None:
             E[left_i][1]=left_child
         E_hat[i]= up_child+left_child
-    return v,E,Q,E_hat
+    return v,E,Q,E_hat,v_hard
 
 if __name__=='__main__':
     pass
