@@ -10,6 +10,7 @@ import time
 import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
+from didyprog.image_generation.sp_layer import SPLayer
 from config import *
 import libs as lib
 import libs.plot
@@ -51,6 +52,8 @@ class InvNet:
 
         self.fixed_noise=gen_rand_noise(4)
 
+        self.dp_layer=SPLayer()
+
     def load_data(self):
         data_transform = transforms.Compose([
             transforms.Resize(32),
@@ -76,8 +79,8 @@ class InvNet:
         real_class = F.one_hot(real_data[1], num_classes=10)
         real_class = real_class.float()
         real_p1 = real_class.to(self.device)
-        # mone = torch.FloatTensor([1]) * -1
-        # mone=mone.to(self.device)
+        mone = torch.FloatTensor([1]) * -1
+        mone=mone.to(self.device)
 
         for i in range(1):
             # print("Generator iters: " + str(i))
@@ -87,12 +90,11 @@ class InvNet:
             fake_data = self.G(noise, real_p1)
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
-            # gen_cost = gen_cost.view((1))
-            # gen_cost.backward(mone)
-            gen_cost.backward()
+            gen_cost = gen_cost.view((1))
+            gen_cost.backward(mone)
             gen_cost = -gen_cost
 
-        self.optim_g.step()
+            self.optim_g.step()
 
         return gen_cost, real_p1
 
@@ -150,6 +152,9 @@ class InvNet:
                'disc_fake':disc_fake,
                'gradient_penalty':gradient_penalty}
         return stats
+
+    def proj_update(self):
+        pass
 
     def sample(self):
         try:
@@ -226,6 +231,7 @@ class InvNet:
 
             gen_cost,real_p1,=self.generator_update()
 
+            proj_cost=self.proj_update()
             stats=self.critic_update()
             stats['start'],stats['iteration'],stats['gen_cost']=start_time,iteration,gen_cost
 
