@@ -22,7 +22,8 @@ def get_cropped_image():
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('/Users/kellymarshall/PycharmProjects/didyprog/files/', train=True, download=True,
                                    transform=transforms.Compose([
-                                       transforms.ToTensor()])),
+                                       transforms.ToTensor(),
+                                   ])),
         batch_size=1, shuffle=True)
     _, (example_data, example_targets) = next(enumerate(train_loader))
     image=example_data[0][0]
@@ -30,56 +31,74 @@ def get_cropped_image():
     return cropped
 
 
-def make_graph(image):
-    max_i,max_j=image.shape
+def make_graph(max_i,max_j):
     idx_to_loc=[]
     loc_to_idx={}
     total_nodes=0
 
 
-    reachable={}
     for i in range(max_i):
         for j in range(max_j):
-            pixel=image[i][j]
-            if pixel==0 or ((i,j) not in reachable and total_nodes>0):
-                continue
-            if total_nodes==0:
-                reachable[(i,j)]=1
             idx_to_loc.append((i,j))
             loc_to_idx[(i,j)]=total_nodes
-            reachable[(i+1,j)]=1
-            reachable[(i,j+1)]=1
             total_nodes+=1
-    theta=np.zeros(shape=(total_nodes,2))
-    map={}
-    rev_map=defaultdict(lambda: [None,None])
-    #first row is downward distance,
-    #second row rightward distance
+
+    map = {}
+    rev_map = defaultdict(lambda: [None, None, None, None])
     for i in range(total_nodes):
         i_loc,j_loc=idx_to_loc[i]
-        value_i=image[i_loc,j_loc]
-        if i_loc<=max_i-1 and (i_loc+1,j_loc) in loc_to_idx:
-            down_val = (image[i_loc + 1, j_loc])
-            down_idx=(i_loc+1,j_loc)
-            down_i=loc_to_idx[down_idx]
-            distance = (value_i - down_val) ** 2
-            theta[i][0]=distance
+
+        on_bottom= i_loc==max_i-1
+        on_right= j_loc==max_j-1
+        on_left= (j_loc==0)
+        if not on_right:
+            east_idx = (i_loc,j_loc+1)
+            east_i = loc_to_idx[east_idx]
         else:
-            down_i=None
-            theta[i][0]=float('inf')
-        if j_loc<=max_j-1 and (i_loc,j_loc+1) in loc_to_idx:
-            right_val = (image[i_loc, j_loc+1])
-            right_idx = (i_loc, j_loc+1)
-            right_i = loc_to_idx[right_idx]
-            distance = (value_i - right_val) ** 2
-            theta[i][1] = distance
+            east_i=None
+
+        if not (on_bottom or on_right):
+            se_idx = (i_loc+1,j_loc+1)
+            se_i = loc_to_idx[se_idx]
         else:
-            right_i=None
-            theta[i][1]=float('inf')
-        map[i]=[down_i,right_i]
-        rev_map[down_i][0]=i
-        rev_map[right_i][1]=i
-    return theta,loc_to_idx,idx_to_loc,map,rev_map
+            se_i=None
+
+        if not on_bottom:
+            south_idx = (i_loc + 1, j_loc)
+            south_i = loc_to_idx[south_idx]
+        else:
+            south_i=None
+
+        if not (on_bottom or on_left):
+            sw_idx=(i_loc+1,j_loc-1)
+            sw_i = loc_to_idx[sw_idx]
+        else:
+            sw_i = None
+        map[i] = [east_i, se_i, south_i,sw_i]
+        rev_map[east_i][0] = i
+        rev_map[se_i][1] = i
+        rev_map[south_i][2] = i
+        rev_map[sw_i][3] = i
+    return loc_to_idx,idx_to_loc,map,rev_map
+
+def compute_distances(image,idx_to_loc,map):
+    n_nodes=len(idx_to_loc)
+    theta=np.zeros((n_nodes,4))
+    for i in range(len(idx_to_loc)):
+        # print('i:',i)
+        # print('loc:',idx_to_loc[i])
+        lst = list(map[i])
+        cur_loc=idx_to_loc[i]
+        cur_val=image[cur_loc]
+        for j,x in enumerate(lst):
+            if x is not None:
+                loc=idx_to_loc[x]
+                lst[j]=(cur_val-image[loc])**2
+            else:
+                lst[j]=float('inf')
+        values=np.array(lst)
+        theta[i]=values
+    return theta
 
 def get_image_graph():
     image=get_cropped_image()

@@ -1,8 +1,8 @@
-from image_generation.mnist_digit import *
+from didyprog.image_generation.mnist_digit import *
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
-from image_generation.sp_layer import SPLayer
+from didyprog.image_generation.sp_layer import SPLayer
 import argparse
 def train_image(image,lr,num_iters):
     '''
@@ -20,15 +20,12 @@ def train_image(image,lr,num_iters):
     '''
     plt.imshow(image)
     plt.show()
-    lengths=[]
     writer=SummaryWriter()
-    layer=SPLayer()
+    loc_to_idx, idx_to_loc, map, rev_map=make_graph(16,16)
+    layer=SPLayer(idx_to_loc,map,rev_map)
     for i in range(num_iters):
-        v,E,idx_to_loc=layer.forward(image)
+        v,E,hard_v=layer.forward(image)
         image_grad=layer.backward(image, E, idx_to_loc)
-        hard_v=layer.true_value(image)
-        lengths.append(v)
-
         writer.add_scalar('soft shortest path',v,global_step=i)
         writer.add_scalar('hard shortest path',hard_v,global_step=i)
 
@@ -38,7 +35,7 @@ def train_image(image,lr,num_iters):
         if not i%100:
             plt.imshow(image)
             plt.show()
-        image+=lr*image_grad
+        image-=lr*image_grad
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -49,5 +46,4 @@ if __name__=='__main__':
 
     image = get_cropped_image()
 
-    print(type(args.n_iters))
     train_image(image,args.lr,args.n_iters)

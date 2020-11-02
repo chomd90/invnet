@@ -1,7 +1,7 @@
 import numpy as np
-from didyprog.reference.shortest_path import sp_grad
-from image_generation.sp_utils import compute_diff
-from image_generation.mnist_digit import make_graph
+from didyprog.didyprog.reference.shortest_path import sp_grad
+from didyprog.image_generation.sp_utils import compute_diff
+from didyprog.image_generation.mnist_digit import make_graph
 
 class SPLayer:
 
@@ -20,11 +20,13 @@ class SPLayer:
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
+        image+=0.01
         theta, loc_to_idx, idx_to_loc, adj_map, rev_map = make_graph(image)
-        v, E, Q, E_hat = sp_grad(theta, adj_map, rev_map)
+        v, E, Q, E_hat,Q_hard = sp_grad(theta, adj_map, rev_map)
         return v,E,idx_to_loc
 
     def backward(self,image, E, idx_to_loc):
+        #TODO
         '''
         Parameters
         ----------
@@ -71,5 +73,5 @@ class SPLayer:
 
     def true_value(self,image):
         theta, loc_to_idx, idx_to_loc, adj_map, rev_map = make_graph(image)
-        v, E, Q, E_hat = sp_grad(theta, adj_map, rev_map,operator='hardmax')
+        v, E, Q, E_hat,Q_hard = sp_grad(theta, adj_map, rev_map,operator='hardmax')
         return v
