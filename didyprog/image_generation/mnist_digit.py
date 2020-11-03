@@ -16,8 +16,6 @@ def crop(image,size):
     crop_left = int(round((image_width - crop_width) / 2.))
     return image[crop_top:crop_top+crop_height,crop_left:crop_left+crop_width]
 
-
-
 def get_cropped_image():
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('/Users/kellymarshall/PycharmProjects/didyprog/files/', train=True, download=True,
@@ -35,14 +33,11 @@ def make_graph(max_i,max_j):
     idx_to_loc=[]
     loc_to_idx={}
     total_nodes=0
-
-
     for i in range(max_i):
         for j in range(max_j):
             idx_to_loc.append((i,j))
             loc_to_idx[(i,j)]=total_nodes
             total_nodes+=1
-
     map = {}
     rev_map = defaultdict(lambda: [None, None, None, None])
     for i in range(total_nodes):
@@ -82,11 +77,11 @@ def make_graph(max_i,max_j):
     return loc_to_idx,idx_to_loc,map,rev_map
 
 def compute_distances(image,idx_to_loc,map):
+    image=image.squeeze()
     n_nodes=len(idx_to_loc)
     theta=np.zeros((n_nodes,4))
+    print('image:',image.shape)
     for i in range(len(idx_to_loc)):
-        # print('i:',i)
-        # print('loc:',idx_to_loc[i])
         lst = list(map[i])
         cur_loc=idx_to_loc[i]
         cur_val=image[cur_loc]

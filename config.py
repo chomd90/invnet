@@ -52,7 +52,7 @@ class TestConfig(argparse.Namespace):
         parser.add_argument('--output_path', required=True, help='output directory')
         parser.add_argument('--data_dir',default='/Users/kellymarshall/PycharmProjects/graph_invnet/files/')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')
-        parser.add_argument('--batch_size', default=1, help='Batch size for training')
+        parser.add_argument('--batch_size', default=2, help='Batch size for training')
         parser.add_argument('--hidden_size', default=4, help='Hidden size used for generator and discriminator')
         parser.add_argument('--critic_iter', default=1, help='Number of iter for descriminator')
         parser.add_argument('--proj_iter', default=1, help='Number of iteration for projection update.')

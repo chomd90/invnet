@@ -11,6 +11,7 @@ import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
 from didyprog.image_generation.sp_layer import SPLayer
+from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
 import libs as lib
 import libs.plot
@@ -42,22 +43,23 @@ class InvNet:
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=10).to(device)
+            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=11).to(device)
             self.D = GoodDiscriminator(hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
 
         self.optim_g = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
         self.optim_d = torch.optim.Adam(self.D.parameters(), lr=lr, betas=(0, 0.9))
+        self.optim_pj = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
 
         self.fixed_noise=gen_rand_noise(4)
+
 
         self.dp_layer=SPLayer()
 
     def load_data(self):
         data_transform = transforms.Compose([
             transforms.Resize(32),
-            # transforms.CenterCrop(64),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.1307], std=[0.3801])
         ])
@@ -77,13 +79,15 @@ class InvNet:
 
         real_data= self.sample()
         real_class = F.one_hot(real_data[1], num_classes=10)
+        real_lengths=self.real_lengths(real_data[0])
         real_class = real_class.float()
-        real_p1 = real_class.to(self.device)
+        print('real_class:',real_class.shape)
+        print('real_lengths:',real_lengths.shape)
+        real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
 
         for i in range(1):
-            # print("Generator iters: " + str(i))
             self.G.zero_grad()
             noise = gen_rand_noise(self.batch_size).to(device)
             noise.requires_grad_(True)
@@ -116,7 +120,8 @@ class InvNet:
                 noisev = noise  # totally freeze G, training D
                 real_class = F.one_hot(real_data[1], num_classes=10).to(self.device)
                 real_class = real_class.float()
-                real_p1 = real_class.to(self.device)
+                real_lengths= self.real_lengths(real_images)
+                real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
             end = timer()
             # print('---gen G elapsed time:', end - start)
             start = timer()
@@ -154,7 +159,62 @@ class InvNet:
         return stats
 
     def proj_update(self):
-        pass
+
+        real_data=self.sample()
+        images= real_data[0].detach().to(self.device)
+        real_lengths=self.real_lengths(images).view(-1,1).to(device)
+        real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
+        for iteration in range(self.proj_iters):
+            self.G.zero_grad()
+            noise=gen_rand_noise(self.batch_size).to(self.device)
+            noise.requires_grad=True
+
+            specs=torch.cat([real_class,real_lengths],dim=1)
+            fake_data = self.G(noise, specs)
+            pj_grad,pj_err=self.proj_loss(fake_data,real_lengths)
+            pj_grad.backward()
+            self.optim_pj.step()
+
+        return pj_err
+
+    def proj_loss(self,fake_data,real_lengths):
+        #TODO parallelize this
+
+        grads=torch.zeros((self.batch_size,32*32)).to(self.device)
+        fake_data=fake_data.view((self.batch_size,32,32))
+        fake_data_copy=fake_data.to(self.device).detach().numpy()
+        hard_vs=torch.zeros((self.batch_size)).to(self.device)
+        for i in range(fake_data.shape[0]):
+            v,E,v_hard=self.dp_layer.forward(fake_data_copy[i])
+            grad=self.dp_layer.backward(fake_data_copy[i],E)
+
+            grads[i]=torch.tensor(grad).view(-1)
+            real_lengths[i]=v_hard
+        real_lengths=real_lengths.squeeze()
+        grads.requires_grad=False
+        fake_data=fake_data.view((self.batch_size,-1))
+        coeff=2*(hard_vs-real_lengths)
+        coeff=coeff.squeeze()
+        summed=(grads*fake_data).sum(dim=1)
+        proj_loss=summed.dot(coeff)
+
+        proj_err=(hard_vs-real_lengths)**2
+        proj_err=proj_err.sum().item()
+
+        return proj_loss,proj_err
+
+
+
+    def real_lengths(self,images):
+        #TODO Find a way to parallelize this
+        #https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html
+
+        real_lengths = []
+        for i in range(images.shape[0]):
+            _,_,v_hard=self.dp_layer.forward(images[i])
+            real_lengths.append(v_hard)
+        real_lengths=torch.tensor(real_lengths)
+        return real_lengths.view(-1,1)
 
     def sample(self):
         try:
@@ -187,34 +247,22 @@ class InvNet:
         fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
         self.writer.add_image('G/images', fake_2, stats['iteration'])
 
-        # dev_disc_costs=[]
-        # for _, images in enumerate(self.val_iter):
-        #     imgs = torch.Tensor(images[0])
-        #     imgs = imgs.to(self.device)
-        #     with torch.no_grad():
-        #         imgs_v = imgs
-        #
-        #     D = self.D(imgs_v)
-        #     _dev_disc_cost = -D.mean().cpu().data.numpy()
-        #     print(_dev_disc_cost)
-        #     dev_disc_costs.append(_dev_disc_cost)
-        #     print(dev_disc_costs)
-        # lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
-        # lib.plot.flush()
-        gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
-        # torchvision.utils.save_image(gen_images, self.output_path + 'samples_{}.png'.format(stats['iteration']), nrow=8,
-        #                              padding=2)
+        dev_disc_costs=[]
+        for _, images in enumerate(self.val_iter):
+            imgs = torch.Tensor(images[0])
+            imgs = imgs.to(self.device)
+            with torch.no_grad():
+                imgs_v = imgs
 
-        # real_images=stats['real_data'][0] * .3081 + .1307
+            D = self.D(imgs_v)
+            _dev_disc_cost = -D.mean().cpu().data.numpy()
+            print(_dev_disc_cost)
+            dev_disc_costs.append(_dev_disc_cost)
+            print(dev_disc_costs)
+        lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
+        lib.plot.flush()
+        gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
         real_images=stats['real_data'][0]
-        # print('real image mean:',real_images[:4].mean())
-        # print('fake image mean:',gen_images.mean())
-        # print('real image std:',real_images[:4].std())
-        # print('fake image std:',gen_images.std())
-        # print('real images:',real_images.shape)
-        # assert(False)
-        # for i in range(32):
-        #     print(real_images[:,:,i,:])
         real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
         fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
         real_grid_images=real_grid_images.long()
@@ -229,7 +277,8 @@ class InvNet:
             print('iteration:',iteration)
             start_time=time.time()
 
-            gen_cost,real_p1,=self.generator_update()
+
+            gen_cost,real_p1=self.generator_update()
 
             proj_cost=self.proj_update()
             stats=self.critic_update()
@@ -241,7 +290,7 @@ class InvNet:
             lib.plot.tick()
 
 if __name__=='__main__':
-    config=InvNetConfig()
+    config=TestConfig()
 
 
     # torch.cuda.set_device(config.gpu)

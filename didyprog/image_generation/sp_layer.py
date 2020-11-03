@@ -5,10 +5,9 @@ from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 
 class SPLayer:
 
-    def __init__(self,idx2loc,adj_map,rev_map):
-        self.idx2loc=idx2loc
-        self.adj_map=adj_map
-        self.rev_map=rev_map
+    def __init__(self):
+
+        _,self.idx2loc,self.adj_map,self.rev_map=make_graph(32,32)
 
     def forward(self,image):
         '''
@@ -29,7 +28,7 @@ class SPLayer:
         v, E, Q, E_hat,q_hard = sp_grad(theta, self.adj_map, self.rev_map,'softmax')
         return v,E,q_hard
 
-    def backward(self,image, E, idx_to_loc):
+    def backward(self,image, E):
         '''
         Parameters
         ----------
@@ -51,7 +50,7 @@ class SPLayer:
 
         local_grad_forward = np.zeros((max_i, max_j, 4))
         """Local grad forward is E but indexed based on on location instead of index"""
-        for idx, location in enumerate(idx_to_loc):
+        for idx, location in enumerate(self.idx2loc):
             i, j = location
             local_grad_forward[i, j] = E[idx]
 
@@ -64,7 +63,7 @@ class SPLayer:
 
         forward_grad = local_grad_forward * forward_effect
         back_grad = np.zeros_like(forward_grad)
-        for idx, location in enumerate(idx_to_loc):
+        for idx, location in enumerate(self.idx2loc):
             i, j = location
 
             if j > 0: #Gradient from westward parent
@@ -81,8 +80,3 @@ class SPLayer:
 
         full_grad = (back_grad + forward_grad).sum(axis=2)
         return full_grad
-
-    def true_value(self,image):
-        theta, loc_to_idx, idx_to_loc, adj_map, rev_map = make_graph(image)
-        v, E, Q, E_hat,Q_hard = sp_grad(theta, adj_map, rev_map,operator='hardmax')
-        return v
