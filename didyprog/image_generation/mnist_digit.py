@@ -80,7 +80,6 @@ def compute_distances(image,idx_to_loc,map):
     image=image.squeeze()
     n_nodes=len(idx_to_loc)
     theta=np.zeros((n_nodes,4))
-    print('image:',image.shape)
     for i in range(len(idx_to_loc)):
         lst = list(map[i])
         cur_loc=idx_to_loc[i]

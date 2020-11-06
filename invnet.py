@@ -43,7 +43,7 @@ class InvNet:
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=11).to(device)
+            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=1).to(device)
             self.D = GoodDiscriminator(hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
@@ -60,6 +60,7 @@ class InvNet:
     def load_data(self):
         data_transform = transforms.Compose([
             transforms.Resize(32),
+            # transforms.CenterCrop(64),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.1307], std=[0.3801])
         ])
@@ -78,12 +79,11 @@ class InvNet:
             p.requires_grad_(False)
 
         real_data= self.sample()
-        real_class = F.one_hot(real_data[1], num_classes=10)
+        #real_class = F.one_hot(real_data[1], num_classes=10)
         real_lengths=self.real_lengths(real_data[0])
-        real_class = real_class.float()
-        print('real_class:',real_class.shape)
-        print('real_lengths:',real_lengths.shape)
-        real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
+        # real_class = real_class.float()
+        # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
+        real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
 
@@ -118,10 +118,11 @@ class InvNet:
             real_images = real_data[0].to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
-                real_class = F.one_hot(real_data[1], num_classes=10).to(self.device)
-                real_class = real_class.float()
+                # real_class = F.one_hot(real_data[1], num_classes=10).to(self.device)
+                # real_class = real_class.float()
                 real_lengths= self.real_lengths(real_images)
-                real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
+                # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
+                real_p1 = real_lengths.to(self.device)
             end = timer()
             # print('---gen G elapsed time:', end - start)
             start = timer()
@@ -163,13 +164,14 @@ class InvNet:
         real_data=self.sample()
         images= real_data[0].detach().to(self.device)
         real_lengths=self.real_lengths(images).view(-1,1).to(device)
-        real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
+        # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
 
-            specs=torch.cat([real_class,real_lengths],dim=1)
+            # specs=torch.cat([real_class,real_lengths],dim=1)
+            specs=real_lengths
             fake_data = self.G(noise, specs)
             pj_grad,pj_err=self.proj_loss(fake_data,real_lengths)
             pj_grad.backward()
@@ -276,7 +278,6 @@ class InvNet:
         for iteration in range(iters):
             print('iteration:',iteration)
             start_time=time.time()
-
 
             gen_cost,real_p1=self.generator_update()
 
