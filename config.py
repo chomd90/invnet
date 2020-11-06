@@ -15,13 +15,13 @@ def get_parser(name):
 class InvNetConfig(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("InvNet config")
-        parser.add_argument('--dataset', required=False, default='mnist', help='circle / polycrystalline')
+        parser.add_argument('--dataset', default='mnist', help='circle / polycrystalline')
         parser.add_argument('--trainset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/train_toyCircle_3Ch_128.h5',
                             help='Train dataset path')
         parser.add_argument('--validset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/valid_toyCircle_3Ch_128.h5',
                             help='Valid dataset path')
         parser.add_argument('--lr',default=01e-04)
-        parser.add_argument('--output_path', required=True, help='output directory')
+        parser.add_argument('--output_path', default='./output_dir', help='output directory')
         parser.add_argument('--data_dir', default='home/km3888/graph_invnet/files/')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=32, help='Batch size for training')
@@ -49,7 +49,7 @@ class TestConfig(argparse.Namespace):
         parser.add_argument('--validset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/valid_toyCircle_3Ch_128.h5',
                             help='Valid dataset path')
         parser.add_argument('--lr',default=01e-04)
-        parser.add_argument('--output_path', required=True, help='output directory')
+        parser.add_argument('--output_path', required=False,default='./nada/', help='output directory')
         parser.add_argument('--data_dir',default='/Users/kellymarshall/PycharmProjects/graph_invnet/files/')
         parser.add_argument('--gpu', default=0, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=2, help='Batch size for training')

@@ -235,7 +235,7 @@ class InvNet:
         self.writer.add_scalar('data/disc_fake', stats['disc_fake'], stats['iteration'])
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
-
+        self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
         lib.plot.plot(self.output_path + 'time', time.time() - stats['start'])
         lib.plot.plot(self.output_path + 'train_disc_cost', stats['disc_cost'].cpu().data.numpy())
         lib.plot.plot(self.output_path + 'train_gen_cost', stats['gen_cost'].cpu().data.numpy())
@@ -283,7 +283,11 @@ class InvNet:
 
             proj_cost=self.proj_update()
             stats=self.critic_update()
-            stats['start'],stats['iteration'],stats['gen_cost']=start_time,iteration,gen_cost
+            add_stats={'start':start_time,
+                       'iteration':iteration,
+                        'gen_cost':gen_cost,
+                       'proj_cost':proj_cost}
+            stats.update(add_stats)
 
             self.log(stats)
             if iteration%10==0:
@@ -291,7 +295,7 @@ class InvNet:
             lib.plot.tick()
 
 if __name__=='__main__':
-    config=TestConfig()
+    config=InvNetConfig()
 
 
     # torch.cuda.set_device(config.gpu)
