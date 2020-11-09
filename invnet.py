@@ -54,6 +54,7 @@ class InvNet:
 
         self.fixed_noise=gen_rand_noise(4)
 
+        self.real_length_d={}
 
         self.dp_layer=SPLayer()
 
@@ -125,14 +126,9 @@ class InvNet:
                 real_lengths= self.real_lengths(real_images)
                 # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
                 real_p1 = real_lengths.to(self.device)
-            end = timer()
             # print('---gen G elapsed time:', end - start)
             start = timer()
             fake_data = self.G(noisev, real_p1).detach()
-            end = timer()
-            # print('---load real imgs elapsed time:', end - start)
-            start = timer()
-
             # train with real data
             disc_real = self.D(real_images)
             disc_real = disc_real.mean()
@@ -163,11 +159,13 @@ class InvNet:
 
     def proj_update(self):
         start=timer()
-        real_data=self.sample()
-        images= real_data[0].detach().to(self.device)
-        real_lengths=self.real_lengths(images).view(-1,1).to(device)
+
         # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
+            real_data = self.sample()
+            images = real_data[0].detach().to(self.device)
+            real_lengths = self.real_lengths(images).view(-1, 1).to(device)
+
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
@@ -180,12 +178,13 @@ class InvNet:
             self.optim_pj.step()
 
         end=timer()
-        print('Projection update elapsed time:',end-start)
+        print('--projection update elapsed time:',end-start)
         return pj_err
 
     def proj_loss(self,fake_data,real_lengths):
         #TODO parallelize this
         #TODO get numpy operations on gpu
+        start=timer()
         grads=torch.zeros((self.batch_size,32*32)).cpu()
         fake_data=fake_data.view((self.batch_size,32,32))
         fake_data=fake_data.cpu()
@@ -209,6 +208,8 @@ class InvNet:
         proj_err=(fake_lengths-real_lengths)**2
         proj_err=proj_err.sum().item()
 
+        end=timer()
+        print('--projection loss elapsed time:',end-start)
         return proj_loss.to(self.device),proj_err
 
 
@@ -219,8 +220,11 @@ class InvNet:
 
         real_lengths = []
         for i in range(images.shape[0]):
-            _,_,v_hard=self.dp_layer.forward(images[i])
-            real_lengths.append(v_hard)
+            image=images[i]
+            if image not in self.real_length_d:
+                _, _, v_hard = self.dp_layer.forward(images[i])
+                self.real_length_d[image]=  v_hard
+            real_lengths.append(self.real_length_d[image])
         real_lengths=torch.tensor(real_lengths)
         return real_lengths.view(-1,1)
 
