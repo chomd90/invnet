@@ -75,6 +75,7 @@ class InvNet:
         return train_loader,val_loader
 
     def generator_update(self):
+        start=timer()
         for p in self.D.parameters():
             p.requires_grad_(False)
 
@@ -100,15 +101,16 @@ class InvNet:
 
             self.optim_g.step()
 
+        end=timer()
+        print('--generator update elapsed time:',end-start)
         return gen_cost, real_p1
 
     def critic_update(self):
         for p in self.D.parameters():  # reset requires_grad
             p.requires_grad_(True)  # they are set to False below in training G
+        start = timer()
         for i in range(self.critic_iters):
             # print("Critic iter: " + str(i))
-
-            start = timer()
             self.D.zero_grad()
             real_data = self.sample()
             # gen fake data and load real data
@@ -160,7 +162,7 @@ class InvNet:
         return stats
 
     def proj_update(self):
-
+        start=timer()
         real_data=self.sample()
         images= real_data[0].detach().to(self.device)
         real_lengths=self.real_lengths(images).view(-1,1).to(device)
@@ -177,33 +179,37 @@ class InvNet:
             pj_grad.backward()
             self.optim_pj.step()
 
+        end=timer()
+        print('Projection update elapsed time:',end-start)
         return pj_err
 
     def proj_loss(self,fake_data,real_lengths):
         #TODO parallelize this
-
-        grads=torch.zeros((self.batch_size,32*32)).to(self.device)
+        #TODO get numpy operations on gpu
+        grads=torch.zeros((self.batch_size,32*32)).cpu()
         fake_data=fake_data.view((self.batch_size,32,32))
-        fake_data_copy=fake_data.to(self.device).detach().numpy()
-        hard_vs=torch.zeros((self.batch_size)).to(self.device)
+        fake_data=fake_data.cpu()
+        fake_data_copy=fake_data.detach().numpy()
+        fake_lengths=torch.zeros((self.batch_size))
+        real_lengths=real_lengths.cpu()
         for i in range(fake_data.shape[0]):
             v,E,v_hard=self.dp_layer.forward(fake_data_copy[i])
             grad=self.dp_layer.backward(fake_data_copy[i],E)
 
             grads[i]=torch.tensor(grad).view(-1)
-            real_lengths[i]=v_hard
+            fake_lengths[i]=v_hard
         real_lengths=real_lengths.squeeze()
         grads.requires_grad=False
         fake_data=fake_data.view((self.batch_size,-1))
-        coeff=2*(hard_vs-real_lengths)
+        coeff=2*(fake_lengths+real_lengths)
         coeff=coeff.squeeze()
         summed=(grads*fake_data).sum(dim=1)
         proj_loss=summed.dot(coeff)
 
-        proj_err=(hard_vs-real_lengths)**2
+        proj_err=(fake_lengths-real_lengths)**2
         proj_err=proj_err.sum().item()
 
-        return proj_loss,proj_err
+        return proj_loss.to(self.device),proj_err
 
 
 
@@ -242,6 +248,7 @@ class InvNet:
         lib.plot.plot(self.output_path + 'wasserstein_distance', stats['w_dist'].cpu().data.numpy())
 
     def save(self,stats):
+        start=timer()
         size=int(math.sqrt(self.output_dim))
         fake_2 = torch.argmax(stats['fake_data'].view(self.batch_size, 1, size, size), dim=1).unsqueeze(1)
         fake_2 = fake_2.int()
@@ -258,9 +265,7 @@ class InvNet:
 
             D = self.D(imgs_v)
             _dev_disc_cost = -D.mean().cpu().data.numpy()
-            print(_dev_disc_cost)
             dev_disc_costs.append(_dev_disc_cost)
-            print(dev_disc_costs)
         lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
         lib.plot.flush()
         gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
@@ -273,7 +278,8 @@ class InvNet:
         self.writer.add_image('fake images',fake_grid_images,stats['iteration'])
         torch.save(self.G, self.output_path + 'generator.pt')
         torch.save(self.D, self.output_path + 'discriminator.pt')
-
+        end=timer()
+        print('--Save elapsed time:',end-start)
     def train(self,iters):
         for iteration in range(iters):
             print('iteration:',iteration)
@@ -304,5 +310,7 @@ if __name__=='__main__':
 
     print('training on:',device)
     sys.stdout.flush()
-    invnet=InvNet(config.batch_size,config.output_path,config.data_dir,config.lr,config.critic_iter,config.proj_iter,32*32,config.hidden_size,device,config.lambda_gp)
+    invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
+                  config.lr,config.critic_iter,config.proj_iter,32*32,
+                  config.hidden_size,device,config.lambda_gp)
     invnet.train(100000)

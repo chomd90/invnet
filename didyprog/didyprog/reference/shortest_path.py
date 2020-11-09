@@ -36,9 +36,9 @@ def sp_grad(theta: np.ndarray,
     E_hat=np.zeros((n_nodes+1))
     E = np.zeros((n_nodes, 4))
 
-    V[-1]=float('inf')
+    V[-1]=-1*float('inf')
     V[-2]=0
-    V_hard[-1]=float('inf')
+    V_hard[-1]=-1*float('inf')
     V_hard[-2]=0
     for i in reversed(range(n_nodes-1)):
 
@@ -50,14 +50,14 @@ def sp_grad(theta: np.ndarray,
             else:
                 fixed_idxs.append(idxs[p])
         options=V[fixed_idxs]+theta[i,:]
-        V[i],Q[i]=operator.min(options)
+        V[i],Q[i]=operator.max(options)
         if np.isnan(V[i]):
-            V[i]=float('inf')
+            V[i]=-1*float('inf')
             Q[i]=np.array([0]*4)
         hard_options = V_hard[fixed_idxs] + theta[i, :]
-        V_hard[i], _ = hard_operator.min(hard_options)
+        V_hard[i], _ = hard_operator.max(hard_options)
         if np.isnan(V_hard[i]):
-            V_hard[i] = float('inf')
+            V_hard[i] = -1*float('inf')
     v=V[0]
     v_hard=V_hard[0]
     E[0]=Q[0]

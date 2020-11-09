@@ -87,9 +87,10 @@ def compute_distances(image,idx_to_loc,map):
         for j,x in enumerate(lst):
             if x is not None:
                 loc=idx_to_loc[x]
-                lst[j]=(cur_val-image[loc])**2
+                im_level=image[loc]
+                lst[j]=(cur_val+im_level)**2
             else:
-                lst[j]=float('inf')
+                lst[j]=-1*float('inf')
         values=np.array(lst)
         theta[i]=values
     return theta
