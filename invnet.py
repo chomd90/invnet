@@ -13,6 +13,7 @@ from graph.utils import calc_gradient_penalty,gen_rand_noise,\
 from didyprog.image_generation.sp_layer import SPLayer
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
+import pickle
 import libs as lib
 import libs.plot
 import numpy as np
@@ -54,7 +55,7 @@ class InvNet:
 
         self.fixed_noise=gen_rand_noise(4)
 
-        self.real_length_d={}
+        self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
         self.dp_layer=SPLayer()
 
@@ -66,6 +67,7 @@ class InvNet:
             transforms.Normalize(mean=[0.1307], std=[0.3801])
         ])
         data_dir = self.data_dir
+        print('data_dir:',data_dir)
         mnist_data = datasets.MNIST(data_dir, download=True,
                                     transform=data_transform)
         train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
@@ -159,13 +161,11 @@ class InvNet:
 
     def proj_update(self):
         start=timer()
-
+        real_data = self.sample()
+        images = real_data[0].detach().to(self.device)
+        real_lengths = self.real_lengths(images).view(-1, 1).to(device)
         # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
-            real_data = self.sample()
-            images = real_data[0].detach().to(self.device)
-            real_lengths = self.real_lengths(images).view(-1, 1).to(device)
-
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
@@ -222,7 +222,7 @@ class InvNet:
         for i in range(images.shape[0]):
             image=images[i]
             if image not in self.real_length_d:
-                _, _, v_hard = self.dp_layer.forward(images[i])
+                v_hard = self.dp_layer.hard_v(images[i])
                 self.real_length_d[image]=  v_hard
             real_lengths.append(self.real_length_d[image])
         real_lengths=torch.tensor(real_lengths)
@@ -292,7 +292,9 @@ class InvNet:
             gen_cost,real_p1=self.generator_update()
 
             proj_cost=self.proj_update()
+            print('projection update ended')
             stats=self.critic_update()
+            print('did critic update')
             add_stats={'start':start_time,
                        'iteration':iteration,
                         'gen_cost':gen_cost,
@@ -306,15 +308,13 @@ class InvNet:
 
 if __name__=='__main__':
     config=InvNetConfig()
-
-
-    # torch.cuda.set_device(config.gpu)
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
-
+    if cuda_available:
+        torch.cuda.set_device(device)
     print('training on:',device)
     sys.stdout.flush()
     invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
                   config.lr,config.critic_iter,config.proj_iter,32*32,
                   config.hidden_size,device,config.lambda_gp)
-    invnet.train(100000)
+    invnet.train(30000)
