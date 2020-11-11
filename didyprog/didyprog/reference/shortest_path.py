@@ -80,5 +80,30 @@ def sp_grad(theta: np.ndarray,
         E_hat[i]= e_child+se_child+s_child+sw_child
     return v,E,Q,E_hat,v_hard
 
+def hard_sp(theta: np.ndarray,
+                  adj_map: dict,)\
+        ->Tuple[float,np.ndarray]:
+    hard_operator = operators['hardmax']
+    n_nodes=theta.shape[0]
+    assert n_nodes>=1
+    V_hard = np.zeros((n_nodes + 1))
+
+    V_hard[-1]=-1*float('inf')
+    V_hard[-2]=0
+    for i in reversed(range(n_nodes-1)):
+        idxs=adj_map[i]
+        fixed_idxs=[]
+        for p in range(len(idxs)):
+            if idxs[p] is None:
+                fixed_idxs.append(n_nodes)
+            else:
+                fixed_idxs.append(idxs[p])
+        hard_options = V_hard[fixed_idxs] + theta[i, :]
+        V_hard[i], _ = hard_operator.max(hard_options)
+        if np.isnan(V_hard[i]):
+            V_hard[i] = -1*float('inf')
+    v_hard=V_hard[0]
+    return v_hard
+
 if __name__=='__main__':
     pass

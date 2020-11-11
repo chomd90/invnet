@@ -129,7 +129,7 @@ class InvNet:
                 # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
                 real_p1 = real_lengths.to(self.device)
             # print('---gen G elapsed time:', end - start)
-            start = timer()
+            # start = timer()
             fake_data = self.G(noisev, real_p1).detach()
             # train with real data
             disc_real = self.D(real_images)
@@ -160,6 +160,8 @@ class InvNet:
         return stats
 
     def proj_update(self):
+        if self.proj_iters==0:
+            return 0
         start=timer()
         real_data = self.sample()
         images = real_data[0].detach().to(self.device)
@@ -169,7 +171,6 @@ class InvNet:
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-
             # specs=torch.cat([real_class,real_lengths],dim=1)
             specs=real_lengths
             fake_data = self.G(noise, specs)
@@ -184,9 +185,8 @@ class InvNet:
     def proj_loss(self,fake_data,real_lengths):
         #TODO parallelize this
         #TODO get numpy operations on gpu
-        start=timer()
         grads=torch.zeros((self.batch_size,32*32)).cpu()
-        fake_data=fake_data.view((self.batch_size,32,32))
+        fake_data=fake_data.view((self.batch_size,1,32,32))
         fake_data=fake_data.cpu()
         fake_data_copy=fake_data.detach().numpy()
         fake_lengths=torch.zeros((self.batch_size))
@@ -208,8 +208,6 @@ class InvNet:
         proj_err=(fake_lengths-real_lengths)**2
         proj_err=proj_err.sum().item()
 
-        end=timer()
-        print('--projection loss elapsed time:',end-start)
         return proj_loss.to(self.device),proj_err
 
 
@@ -292,9 +290,7 @@ class InvNet:
             gen_cost,real_p1=self.generator_update()
 
             proj_cost=self.proj_update()
-            print('projection update ended')
             stats=self.critic_update()
-            print('did critic update')
             add_stats={'start':start_time,
                        'iteration':iteration,
                         'gen_cost':gen_cost,
