@@ -59,23 +59,26 @@ class InvNet:
 
         self.dp_layer=SPLayer()
 
-    def load_data(self):
-        data_transform = transforms.Compose([
-            transforms.Resize(32),
-            # transforms.CenterCrop(64),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.1307], std=[0.3801])
-        ])
-        data_dir = self.data_dir
-        print('data_dir:',data_dir)
-        mnist_data = datasets.MNIST(data_dir, download=True,
-                                    transform=data_transform)
-        train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
+    def train(self,iters):
+        for iteration in range(iters):
+            print('iteration:',iteration)
+            start_time=time.time()
 
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
-        val_loader=torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
-        images, _ = next(iter(train_loader))
-        return train_loader,val_loader
+            gen_cost,real_p1=self.generator_update()
+
+            proj_cost=self.proj_update()
+            stats=self.critic_update()
+            add_stats={'start':start_time,
+                       'iteration':iteration,
+                        'gen_cost':gen_cost,
+                       'proj_cost':proj_cost}
+            stats.update(add_stats)
+
+            self.log(stats)
+            if iteration%10==0:
+                self.save(stats)
+            lib.plot.tick()
+
 
     def generator_update(self):
         start=timer()
@@ -174,7 +177,12 @@ class InvNet:
             # specs=torch.cat([real_class,real_lengths],dim=1)
             specs=real_lengths
             fake_data = self.G(noise, specs)
-            pj_grad,pj_err=self.proj_loss(fake_data,real_lengths)
+            fake_avg= fake_data.mean()
+            fake_std=fake_data.std()
+
+            normed_fake= (fake_data-fake_avg)/(fake_std/0.8)
+            pj_grad,pj_err=self.proj_loss(normed_fake,real_lengths)
+            pj_grad=-1*pj_grad
             pj_grad.backward()
             self.optim_pj.step()
 
@@ -189,10 +197,14 @@ class InvNet:
         fake_data=fake_data.view((self.batch_size,32,32))
         fake_data=fake_data.cpu()
         fake_data_copy=fake_data.detach().numpy()
+
+        avg_fake=fake_data_copy.mean()
+        std_fake=fake_data_copy.std()
+        norm_fake_data=(fake_data_copy-avg_fake)/(std_fake)
         fake_lengths=torch.zeros((self.batch_size))
         real_lengths=real_lengths.cpu()
         for i in range(fake_data.shape[0]):
-            image=fake_data_copy[i]
+            image=norm_fake_data[i]
             v,E,v_hard=self.dp_layer.forward(image)
             grad=self.dp_layer.backward(image,E)
 
@@ -210,8 +222,6 @@ class InvNet:
         proj_err=proj_err.sum().item()
 
         return proj_loss.to(self.device),proj_err
-
-
 
     def real_lengths(self,images):
         #TODO Find a way to parallelize this
@@ -236,6 +246,24 @@ class InvNet:
         if real_data[0].shape[0]<self.batch_size:
             real_data=self.sample()
         return real_data
+
+    def load_data(self):
+        data_transform = transforms.Compose([
+            transforms.Resize(32),
+            # transforms.CenterCrop(64),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.1307], std=[0.3801])
+        ])
+        data_dir = self.data_dir
+        print('data_dir:',data_dir)
+        mnist_data = datasets.MNIST(data_dir, download=True,
+                                    transform=data_transform)
+        train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
+
+        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
+        val_loader=torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
+        images, _ = next(iter(train_loader))
+        return train_loader,val_loader
 
     def log(self,stats):
         # ------------------VISUALIZATION----------
@@ -287,25 +315,6 @@ class InvNet:
         torch.save(self.D, self.output_path + 'discriminator.pt')
         end=timer()
         print('--Save elapsed time:',end-start)
-    def train(self,iters):
-        for iteration in range(iters):
-            print('iteration:',iteration)
-            start_time=time.time()
-
-            gen_cost,real_p1=self.generator_update()
-
-            proj_cost=self.proj_update()
-            stats=self.critic_update()
-            add_stats={'start':start_time,
-                       'iteration':iteration,
-                        'gen_cost':gen_cost,
-                       'proj_cost':proj_cost}
-            stats.update(add_stats)
-
-            self.log(stats)
-            if iteration%10==0:
-                self.save(stats)
-            lib.plot.tick()
 
 if __name__=='__main__':
     config=InvNetConfig()
