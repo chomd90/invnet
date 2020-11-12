@@ -43,6 +43,7 @@ class SPLayer:
         full_grad: numpy.ndarray
          Gradient of the loss with respect to the pixel intensities
         '''
+
         minus_east,minus_se,minus_s,minus_sw = compute_diff(image,add=True)
         # below_{i,j} = P_{i,j} - P_{i+1,j}
 

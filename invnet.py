@@ -186,14 +186,15 @@ class InvNet:
         #TODO parallelize this
         #TODO get numpy operations on gpu
         grads=torch.zeros((self.batch_size,32*32)).cpu()
-        fake_data=fake_data.view((self.batch_size,1,32,32))
+        fake_data=fake_data.view((self.batch_size,32,32))
         fake_data=fake_data.cpu()
         fake_data_copy=fake_data.detach().numpy()
         fake_lengths=torch.zeros((self.batch_size))
         real_lengths=real_lengths.cpu()
         for i in range(fake_data.shape[0]):
-            v,E,v_hard=self.dp_layer.forward(fake_data_copy[i])
-            grad=self.dp_layer.backward(fake_data_copy[i],E)
+            image=fake_data_copy[i]
+            v,E,v_hard=self.dp_layer.forward(image)
+            grad=self.dp_layer.backward(image,E)
 
             grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
