@@ -272,6 +272,10 @@ class InvNet:
         lib.plot.flush()
         gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
         real_images=stats['real_data'][0]
+        mean=gen_images.mean()
+        std=gen_images.std()
+        gen_images=(gen_images-mean)/(std/0.7)
+
         real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
         fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
         real_grid_images=real_grid_images.long()
