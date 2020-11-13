@@ -206,7 +206,7 @@ class InvNet:
         real_lengths=real_lengths.squeeze()
         grads.requires_grad=False
         fake_data=fake_data.view((self.batch_size,-1))
-        coeff=2*(fake_lengths+real_lengths)
+        coeff=2*(fake_lengths-real_lengths)
         coeff=coeff.squeeze()
         summed=(grads*fake_data).sum(dim=1)
         proj_loss=summed.dot(coeff)
