@@ -116,23 +116,16 @@ class InvNet:
             p.requires_grad_(True)  # they are set to False below in training G
         start = timer()
         for i in range(self.critic_iters):
-            # print("Critic iter: " + str(i))
             self.D.zero_grad()
             real_data = self.sample()
             # gen fake data and load real data
             noise = gen_rand_noise(self.batch_size).to(self.device)
 
-            # batch = batch[0] #batch[1] contains labels
             real_images = real_data[0].to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
-                # real_class = F.one_hot(real_data[1], num_classes=10).to(self.device)
-                # real_class = real_class.float()
                 real_lengths= self.real_lengths(real_images)
-                # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
                 real_p1 = real_lengths.to(self.device)
-            # print('---gen G elapsed time:', end - start)
-            # start = timer()
             fake_data = self.G(noisev, real_p1).detach()
             # train with real data
             disc_real = self.D(real_images)
