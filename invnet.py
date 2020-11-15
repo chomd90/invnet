@@ -21,9 +21,12 @@ import sys
 
 class InvNet:
 
-    def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
+    def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
+                 proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False,dp_loss_sign=-1):
         self.writer = SummaryWriter()
+
         self.device=device
+        self.dp_loss_sign=dp_loss_sign
 
         self.data_dir=data_dir
         self.output_path=output_path
@@ -60,6 +63,7 @@ class InvNet:
         self.dp_layer=SPLayer()
 
     def train(self,iters):
+
         for iteration in range(iters):
             print('iteration:',iteration)
             start_time=time.time()
@@ -78,6 +82,10 @@ class InvNet:
             if iteration%10==0:
                 self.save(stats)
             lib.plot.tick()
+        self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
+                                 'proj_iters': self.proj_iters},
+                                {'projection_loss':stats['proj_cost'],
+                                 'disc_cost':stats['disc_cost']})
 
 
     def generator_update(self):
@@ -175,7 +183,7 @@ class InvNet:
 
             normed_fake= (fake_data-fake_avg)/(fake_std/0.8)
             pj_grad,pj_err=self.proj_loss(normed_fake,real_lengths)
-            pj_grad=-1*pj_grad
+            pj_grad=self.dp_loss_sign*pj_grad
             pj_grad.backward()
             self.optim_pj.step()
 
@@ -310,7 +318,11 @@ class InvNet:
         # print('--Save elapsed time:',end-start)
 
 if __name__=='__main__':
+
+
     config=InvNetConfig()
+
+
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
     if cuda_available:
@@ -319,5 +331,5 @@ if __name__=='__main__':
     sys.stdout.flush()
     invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
                   config.lr,config.critic_iter,config.proj_iter,32*32,
-                  config.hidden_size,device,config.lambda_gp)
+                  config.hidden_size,device,config.lambda_gp,config.dp_loss_sign)
     invnet.train(30000)
