@@ -108,7 +108,7 @@ class InvNet:
             self.optim_g.step()
 
         end=timer()
-        print('--generator update elapsed time:',end-start)
+        # print('--generator update elapsed time:',end-start)
         return gen_cost, real_p1
 
     def critic_update(self):
@@ -145,7 +145,7 @@ class InvNet:
 
             self.optim_d.step()
         end = timer()
-        print('---train D elapsed time:', end - start)
+        # print('---train D elapsed time:', end - start)
         stats={'w_dist': w_dist,
                'disc_cost':disc_cost,
                'fake_data':fake_data,
@@ -180,7 +180,7 @@ class InvNet:
             self.optim_pj.step()
 
         end=timer()
-        print('--projection update elapsed time:',end-start)
+        # print('--projection update elapsed time:',end-start)
         return pj_err
 
     def proj_loss(self,fake_data,real_lengths):
@@ -307,7 +307,7 @@ class InvNet:
         torch.save(self.G, self.output_path + 'generator.pt')
         torch.save(self.D, self.output_path + 'discriminator.pt')
         end=timer()
-        print('--Save elapsed time:',end-start)
+        # print('--Save elapsed time:',end-start)
 
 if __name__=='__main__':
     config=InvNetConfig()
