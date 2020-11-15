@@ -331,5 +331,5 @@ if __name__=='__main__':
     sys.stdout.flush()
     invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
                   config.lr,config.critic_iter,config.proj_iter,32*32,
-                  config.hidden_size,device,config.lambda_gp,config.dp_loss_sign)
+                  config.hidden_size,device,config.lambda_gp,dp_loss_sign=config.dp_loss_sign)
     invnet.train(30000)
