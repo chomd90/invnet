@@ -333,3 +333,4 @@ if __name__=='__main__':
                   config.lr,config.critic_iter,config.proj_iter,32*32,
                   config.hidden_size,device,config.lambda_gp,dp_loss_sign=config.dp_loss_sign)
     invnet.train(30000)
+    #TODO fix proj_loss reporting
