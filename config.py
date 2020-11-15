@@ -60,6 +60,8 @@ class TestConfig(argparse.Namespace):
         parser.add_argument('--lambda_gp', default=10, help='gradient penalty hyperparameter')
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
+        parser.add_argument('--dp_loss_sign', default=-1,
+                     help='Sign of the loss optimized during projection update')
 
         return parser
 
