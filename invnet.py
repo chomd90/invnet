@@ -22,11 +22,10 @@ import sys
 class InvNet:
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
-                 proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False,dp_loss_sign=-1):
+                 proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
         self.writer = SummaryWriter()
 
         self.device=device
-        self.dp_loss_sign=dp_loss_sign
 
         self.data_dir=data_dir
         self.output_path=output_path
@@ -82,11 +81,7 @@ class InvNet:
             if iteration%10==0:
                 self.save(stats)
             lib.plot.tick()
-            if iteration==0:
-                self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
-                                         'proj_iters': self.proj_iters},
-                                        {'projection_loss': stats['proj_cost'],
-                                         'disc_cost': stats['disc_cost']})
+
 
 
     def generator_update(self):
@@ -184,7 +179,6 @@ class InvNet:
 
             normed_fake= (fake_data-fake_avg)/(fake_std/0.8)
             pj_grad,pj_err=self.proj_loss(normed_fake,real_lengths)
-            pj_grad=self.dp_loss_sign*pj_grad
             pj_grad.backward()
             self.optim_pj.step()
 
@@ -239,14 +233,23 @@ class InvNet:
         real_lengths=torch.tensor(real_lengths)
         return real_lengths.view(-1,1)
 
-    def sample(self):
-        try:
-            real_data = next(self.dataiter)
-        except:
-            self.dataiter = iter(self.train_loader)
-            real_data = self.dataiter.next()
-        if real_data[0].shape[0]<self.batch_size:
-            real_data=self.sample()
+    def sample(self,train=True):
+        if train:
+            try:
+                real_data = next(self.dataiter)
+            except:
+                self.dataiter = iter(self.train_loader)
+                real_data = self.dataiter.next()
+            if real_data[0].shape[0]<self.batch_size:
+                real_data=self.sample()
+        else:
+            try:
+                real_data = next(self.val_iter)
+            except:
+                self.val_iter = iter(self.val_loader)
+                real_data = self.val_iter.next()
+            if real_data[0].shape[0]<self.batch_size:
+                real_data=self.sample(train=False)
         return real_data
 
     def load_data(self):
@@ -315,6 +318,36 @@ class InvNet:
         self.writer.add_image('fake images',fake_grid_images,stats['iteration'])
         torch.save(self.G, self.output_path + 'generator.pt')
         torch.save(self.D, self.output_path + 'discriminator.pt')
+
+        val_batch=self.sample(train=False)
+        images = val_batch[0].detach()
+        real_lengths = self.real_lengths(images)
+
+        noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
+        # specs=torch.cat([real_class,real_lengths],dim=1)
+        fake_data = self.G(noise, real_lengths.to(self.device))
+        fake_avg = fake_data.mean()
+        fake_std = fake_data.std()
+
+        normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
+        fake_lengths=torch.zeros((fake_data.shape[0]))
+
+        for i in range(fake_data.shape[0]):
+            image=normed_fake[i].view((32,32))
+            _,_,v_hard=self.dp_layer.forward(image)
+
+            fake_lengths[i]=v_hard
+
+        diff=fake_lengths-real_lengths.squeeze()
+        val_proj_err=(diff**2).mean()
+
+
+
+        self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
+                                 'proj_iters': self.proj_iters},
+                                {'projection_loss': val_proj_err,
+                                 'disc_cost': stats['disc_cost']})
+
         end=timer()
         # print('--Save elapsed time:',end-start)
 
@@ -332,6 +365,6 @@ if __name__=='__main__':
     sys.stdout.flush()
     invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
                   config.lr,config.critic_iter,config.proj_iter,32*32,
-                  config.hidden_size,device,config.lambda_gp,dp_loss_sign=config.dp_loss_sign)
+                  config.hidden_size,device,config.lambda_gp)
     invnet.train(30000)
     #TODO fix proj_loss reporting
