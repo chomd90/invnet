@@ -82,10 +82,11 @@ class InvNet:
             if iteration%10==0:
                 self.save(stats)
             lib.plot.tick()
-        self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
-                                 'proj_iters': self.proj_iters},
-                                {'projection_loss':stats['proj_cost'],
-                                 'disc_cost':stats['disc_cost']})
+            if iteration==0:
+                self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
+                                         'proj_iters': self.proj_iters},
+                                        {'projection_loss': stats['proj_cost'],
+                                         'disc_cost': stats['disc_cost']})
 
 
     def generator_update(self):
