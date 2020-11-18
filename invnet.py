@@ -343,8 +343,8 @@ class InvNet:
 
 
 
-        self.writer.add_hparams({'dp_sign': self.dp_loss_sign,
-                                 'proj_iters': self.proj_iters},
+        self.writer.add_hparams({'proj_iters': self.proj_iters,
+                                 'critic_iters':self.critic_iters},
                                 {'projection_loss': val_proj_err,
                                  'disc_cost': stats['disc_cost']})
 
