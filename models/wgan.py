@@ -185,7 +185,7 @@ class GoodGenerator(nn.Module):
         self.relu = nn.ReLU()
         #self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax2d()
+        # self.softmax = nn.Softmax2d()
 
     def forward(self, input,lv):
         if lv is not None:

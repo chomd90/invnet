@@ -68,7 +68,7 @@ def load_data(batch_size):
     ])
 
     data_dir='/Users/kellymarshall/PycharmProjects/graph_invnet/files/'
-    mnist_data=datasets.MNIST(data_dira,download=True,transform=data_transform)
+    mnist_data=datasets.MNIST(data_dir,download=True,transform=data_transform)
     train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
     images,_=next(iter(train_loader))
     return train_loader
@@ -83,32 +83,21 @@ def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=
             # radius is calculated based on the area of the circle.
             # using the conversion with (1/DIM)^2 * pi * r^2 = "normalized area",
             # 'r' is based on the unit of pixel.
-            digit=torch.randint(9,size=(batch_size,))
-            digit=F.one_hot(digit,num_classes=10).float()
-            lv = digit.to(device)
+            # digit=torch.randint(9,size=(batch_size,))
+            # digit=F.one_hot(digit,num_classes=10).float()
+            # lv = digit.to(device)
+            lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
     else:
         lv = None
     with torch.no_grad():
         noisev = noise
         lv_v = lv
     noisev=noisev.float()
-    if device is not None:
-        noisev=noisev.to(device)
     samples = netG(noisev, lv_v).view((batch_size,1,DIM,DIM))
     # samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
     # samples=samples*.3081+.1307
     return samples
 
-def proj_loss(fake_data, real_data):
-    """
-    Fake data requires to be pushed from tanh range to [0, 1]
-    """
-    x_fake, y_fake = centroid_fn(fake_data)
-    x_real, y_real = centroid_fn(real_data)
-    centerError = torch.norm(C * x_fake - C * x_real) + torch.norm(C * y_fake - C * y_real)
-    # radiusError = torch.abs(p1_fn(fake_data) - p1_fn(real_data))
-    radiusError = torch.norm((p1_fn(fake_data) - p1_fn(real_data)))
-    return centerError + radiusError
 
 def training_data_loader():
     return load_data(BATCH_SIZE)
