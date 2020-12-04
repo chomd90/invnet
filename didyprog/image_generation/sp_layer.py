@@ -2,7 +2,7 @@ import numpy as np
 from didyprog.didyprog.reference.shortest_path import sp_grad,hard_sp
 from didyprog.image_generation.sp_utils import compute_diff
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
-
+import math
 class SPLayer:
 
     def __init__(self):
@@ -24,7 +24,8 @@ class SPLayer:
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        theta= compute_distances(image,self.idx2loc,self.adj_map)
+        pos_image= 1/(1+np.exp(-image))
+        theta= compute_distances(pos_image,self.idx2loc,self.adj_map)
         v, E, Q, E_hat,v_hard = sp_grad(theta, self.adj_map, self.rev_map,'softmax')
         return v,E,v_hard
 

@@ -86,7 +86,7 @@ def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=
             # digit=torch.randint(9,size=(batch_size,))
             # digit=F.one_hot(digit,num_classes=10).float()
             # lv = digit.to(device)
-            lv=torch.tensor([600,800,1000,1200]).view(-1,1).float().to(device)
+            lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
     else:
         lv = None
     with torch.no_grad():
