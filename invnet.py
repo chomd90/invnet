@@ -332,8 +332,10 @@ class InvNet:
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
         fake_lengths=torch.zeros((fake_data.shape[0]))
 
+        normed_fake=normed_fake.cpu().detach()
         for i in range(fake_data.shape[0]):
             image=normed_fake[i].view((32,32))
+            image=image.numpy()
             _,_,v_hard=self.dp_layer.forward(image)
 
             fake_lengths[i]=v_hard
