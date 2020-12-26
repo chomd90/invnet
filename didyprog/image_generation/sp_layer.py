@@ -12,11 +12,10 @@ import torch.nn as nn
 class SPLayer(nn.Module):
 
     def __init__(self):
-
+        super(SPLayer,self).__init__()
         _,self.idx2loc,self.adj_map,self.rev_map=make_graph(32,32)
-        self.autograd_function=self.make_autograd_function()
 
-    def forward(self,ctx,image):
+    def forward(self,image):
         '''
             Parameters
             ----------
@@ -31,7 +30,13 @@ class SPLayer(nn.Module):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        pos_image= 1/(1+np.exp(-image))
+
+        pos_image= torch.tensor( 1/(1+np.exp(-image)) )
+        pos_image.requires_grad=True
+        autograd_function = self.create_autograd_function().apply
+
+        return autograd_function(pos_image)
+
         theta= compute_distances(pos_image,self.idx2loc,self.adj_map)
         v, E, Q, E_hat,v_hard = sp_grad(theta, self.adj_map, self.rev_map,'softmax')
         ctx.save_for_backward(E)
@@ -57,15 +62,15 @@ class SPLayer(nn.Module):
                     true_shortest_path: int
                      Shortest path value computed by hard-DP
                     '''
-                pos_image = 1 / (1 + np.exp(-image))
-                theta = compute_distances(pos_image, self.idx2loc, self.adj_map)
+                image = image.detach().numpy()
+                theta = compute_distances(image, self.idx2loc, self.adj_map)
                 v, E, Q, E_hat, v_hard = sp_grad(theta, self.adj_map, self.rev_map, 'softmax')
-                ctx.save_for_backward(E)
-                ctx.save_for_backward(image)
+                ctx.save_for_backward(torch.tensor(E),torch.tensor(image))
+                v,E,v_hard = torch.tensor(v),torch.tensor(E),torch.tensor(v_hard)
                 return v, E, v_hard
 
             @staticmethod
-            def backward(ctx, grad_output):
+            def backward(ctx, v,E,v_hard):
                 '''
                 Parameters
                 ----------
@@ -81,6 +86,7 @@ class SPLayer(nn.Module):
                  Gradient of the loss with respect to the pixel intensities
                 '''
 
+                image,E =ctx.saved_tensors
                 minus_east, minus_se, minus_s, minus_sw = compute_diff(image, add=True)
                 # below_{i,j} = P_{i,j} - P_{i+1,j}
 

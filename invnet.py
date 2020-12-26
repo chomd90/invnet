@@ -59,7 +59,7 @@ class InvNet:
 
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
-        self.dp_layer=SPLayer.apply
+        self.dp_layer=SPLayer()
 
     def train(self,iters):
 
@@ -202,9 +202,9 @@ class InvNet:
         for i in range(fake_data.shape[0]):
             image=norm_fake_data[i]
             v,E,v_hard=self.dp_layer(image)
-            grad=self.dp_layer.backward(image,E)
+            # grad=self.dp_layer.backward(image,E)
 
-            grads[i]=torch.tensor(grad).view(-1)
+            # grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         proj_err=proj_loss
@@ -218,7 +218,7 @@ class InvNet:
         for i in range(images.shape[0]):
             image=images[i]
             if image not in self.real_length_d:
-                v_hard = hard_v(images[i],self.dp_layer.idx2loc,self.dp_layer.adjmap)
+                v_hard = hard_v(images[i],self.dp_layer.idx2loc,self.dp_layer.adj_map)
                 self.real_length_d[image]=  v_hard
             real_lengths.append(self.real_length_d[image])
         real_lengths=torch.tensor(real_lengths)
