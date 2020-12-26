@@ -10,7 +10,7 @@ import time
 import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-from didyprog.image_generation.sp_layer import SPLayer
+from didyprog.image_generation.sp_layer import SPLayer,hard_v
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
 import pickle
@@ -59,7 +59,7 @@ class InvNet:
 
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
-        self.dp_layer=SPLayer()
+        self.dp_layer=SPLayer.apply
 
     def train(self,iters):
 
@@ -201,22 +201,13 @@ class InvNet:
         real_lengths=real_lengths.cpu()
         for i in range(fake_data.shape[0]):
             image=norm_fake_data[i]
-            v,E,v_hard=self.dp_layer.forward(image)
+            v,E,v_hard=self.dp_layer(image)
             grad=self.dp_layer.backward(image,E)
 
             grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
-        real_lengths=real_lengths.squeeze()
-        grads.requires_grad=False
-        fake_data=fake_data.view((self.batch_size,-1))
-        coeff=2*(fake_lengths-real_lengths)
-        coeff=coeff.squeeze()
-        summed=(grads*fake_data).sum(dim=1)
-        proj_loss=summed.dot(coeff)
-
-        proj_err=(fake_lengths-real_lengths)**2
-        proj_err=proj_err.sum().item()
-
+        proj_loss=F.mse_loss(fake_lengths,real_lengths)
+        proj_err=proj_loss
         return proj_loss.to(self.device),proj_err
 
     def real_lengths(self,images):
@@ -227,7 +218,7 @@ class InvNet:
         for i in range(images.shape[0]):
             image=images[i]
             if image not in self.real_length_d:
-                v_hard = self.dp_layer.hard_v(images[i])
+                v_hard = hard_v(images[i],self.dp_layer.idx2loc,self.dp_layer.adjmap)
                 self.real_length_d[image]=  v_hard
             real_lengths.append(self.real_length_d[image])
         real_lengths=torch.tensor(real_lengths)
