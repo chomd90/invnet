@@ -178,13 +178,13 @@ class InvNet:
             fake_std=fake_data.std()
 
             normed_fake= (fake_data-fake_avg)/(fake_std/0.8)
-            pj_grad,pj_err=self.proj_loss(normed_fake,real_lengths)
-            pj_grad.backward()
+            pj_loss=self.proj_loss(normed_fake,real_lengths)
+            pj_loss.backward()
             self.optim_pj.step()
 
         end=timer()
         # print('--projection update elapsed time:',end-start)
-        return pj_err
+        return pj_loss
 
     def proj_loss(self,fake_data,real_lengths):
         #TODO parallelize this
@@ -198,17 +198,17 @@ class InvNet:
         std_fake=fake_data_copy.std()
         norm_fake_data=(fake_data_copy-avg_fake)/(std_fake)
         fake_lengths=torch.zeros((self.batch_size))
-        real_lengths=real_lengths.cpu()
+        real_lengths=real_lengths.cpu().view(-1)
         for i in range(fake_data.shape[0]):
             image=norm_fake_data[i]
-            v,E,v_hard=self.dp_layer(image)
+            v_hard=self.dp_layer(image)
             # grad=self.dp_layer.backward(image,E)
 
             # grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
-        proj_err=proj_loss
-        return proj_loss.to(self.device),proj_err
+        proj_loss.backward()
+        return proj_loss
 
     def real_lengths(self,images):
         #TODO Find a way to parallelize this

@@ -58,11 +58,11 @@ def sp_grad(theta: np.ndarray,
         V_hard[i], _ = hard_operator.max(hard_options)
         if np.isnan(V_hard[i]):
             V_hard[i] = -1*float('inf')
+    #TODO Split this function
     v=V[0]
     v_hard=V_hard[0]
     E[0]=Q[0]
     E_hat[0]=1
-
     for i in range(1,n_nodes):
         e_i,se_i,s_i,sw_i=reverse_adj_map[i]   #(RIP left_i)
         e_child=Q[e_i][0]*E_hat[e_i] if e_i is not None else 0

@@ -13,6 +13,8 @@ def compute_diff(image,add=True):
     '''
     coeff=-1 if add else 1
 
+    image=image.detach().cpu().numpy()
+
     zips = np.zeros(image.shape[-1])[np.newaxis, :]
     zips_above = np.concatenate([zips, image])
     zips_below = np.concatenate([image, zips])
@@ -46,8 +48,6 @@ def compute_diff(image,add=True):
     minus_sw = minus_sw[1:,:-1]
     minus_sw[:,0] = 0
     minus_sw[-1,:] = 0
-
-
 
     return minus_right,minus_se,minus_below,minus_sw
 
