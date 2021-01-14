@@ -33,7 +33,7 @@ class SPLayer(Function):
         pos_image= torch.sigmoid( input)
         pos_image.requires_grad=True
 
-        image = input.clone().detach().numpy()
+        image = input.clone().detach().cpu().numpy()
         theta = compute_distances(image, idx2loc, adj_map)
         v, E, Q, E_hat, v_hard = sp_grad(theta, adj_map, rev_map, 'softmax')
         v, E, v_hard,image = torch.tensor(v), torch.tensor(E), torch.tensor(v_hard), torch.tensor(image)
@@ -87,8 +87,8 @@ class SPLayer(Function):
                 back_grad[i, j, 3] = forward_grad[i - 1, j + 1, 3]
 
         full_grad = (back_grad + forward_grad).sum(axis=2)
-
-        return torch.tensor(full_grad,dtype=torch.float)*v_grad
+        output= torch.tensor(full_grad,dtype=torch.float)*v_grad
+        return output.to(image.device)
 
 
 

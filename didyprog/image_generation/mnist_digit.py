@@ -92,7 +92,7 @@ def compute_distances(image,idx_to_loc,map):
             else:
                 lst[j]=-1*float('inf')
         values=np.array(lst)
-        theta[i]=values
+        theta[i,:]=values
     return theta
 
 def get_image_graph():

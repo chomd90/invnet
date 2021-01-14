@@ -10,7 +10,7 @@ import time
 import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-from didyprog.image_generation.sp_layer import SPLayer,hard_v
+from didyprog.image_generation.sp_layer import SPLayer,hard_v,idx2loc,adj_map
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
 import pickle
@@ -19,11 +19,14 @@ import libs.plot
 import numpy as np
 import sys
 
+
+
 class InvNet:
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
         self.writer = SummaryWriter()
+        print('output dir:',self.writer.logdir)
 
         self.device=device
 
@@ -59,7 +62,7 @@ class InvNet:
 
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
-        self.dp_layer=SPLayer()
+        self.dp_layer=SPLayer.apply
 
     def train(self,iters):
 
@@ -191,12 +194,10 @@ class InvNet:
         #TODO get numpy operations on gpu
         grads=torch.zeros((self.batch_size,32*32)).cpu()
         fake_data=fake_data.view((self.batch_size,32,32))
-        fake_data=fake_data.cpu()
-        fake_data_copy=fake_data.detach().numpy()
 
-        avg_fake=fake_data_copy.mean()
-        std_fake=fake_data_copy.std()
-        norm_fake_data=(fake_data_copy-avg_fake)/(std_fake)
+        avg_fake=fake_data.mean()
+        std_fake=fake_data.std()
+        norm_fake_data=(fake_data-avg_fake)/(std_fake)
         fake_lengths=torch.zeros((self.batch_size))
         real_lengths=real_lengths.cpu().view(-1)
         for i in range(fake_data.shape[0]):
@@ -207,7 +208,6 @@ class InvNet:
             # grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
-        proj_loss.backward()
         return proj_loss
 
     def real_lengths(self,images):
@@ -218,7 +218,7 @@ class InvNet:
         for i in range(images.shape[0]):
             image=images[i]
             if image not in self.real_length_d:
-                v_hard = hard_v(images[i],self.dp_layer.idx2loc,self.dp_layer.adj_map)
+                v_hard = hard_v(images[i],idx2loc,adj_map)
                 self.real_length_d[image]=  v_hard
             real_lengths.append(self.real_length_d[image])
         real_lengths=torch.tensor(real_lengths)
@@ -323,11 +323,9 @@ class InvNet:
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
         fake_lengths=torch.zeros((fake_data.shape[0]))
 
-        normed_fake=normed_fake.cpu().detach()
         for i in range(fake_data.shape[0]):
             image=normed_fake[i].view((32,32))
-            image=image.numpy()
-            _,_,v_hard=self.dp_layer.forward(image)
+            v_hard=self.dp_layer(image)
 
             fake_lengths[i]=v_hard
 
