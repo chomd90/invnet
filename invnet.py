@@ -11,6 +11,7 @@ import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
 from didyprog.image_generation.sp_layer import SPLayer,hard_v,idx2loc,adj_map
+from didyprog.image_generation.graph_layer import GraphLayer
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
 import pickle
@@ -63,6 +64,7 @@ class InvNet:
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
         self.dp_layer=SPLayer.apply
+        self.graph_layer=GraphLayer.apply
 
     def train(self,iters):
 
@@ -177,10 +179,7 @@ class InvNet:
             # specs=torch.cat([real_class,real_lengths],dim=1)
             specs=real_lengths
             fake_data = self.G(noise, specs)
-            fake_avg= fake_data.mean()
-            fake_std=fake_data.std()
-
-            normed_fake= (fake_data-fake_avg)/(fake_std/0.8)
+            normed_fake= self.norm_data(fake_data)
             pj_loss=self.proj_loss(normed_fake,real_lengths)
             pj_loss.backward()
             self.optim_pj.step()
@@ -192,17 +191,17 @@ class InvNet:
     def proj_loss(self,fake_data,real_lengths):
         #TODO parallelize this
         #TODO get numpy operations on gpu
-        grads=torch.zeros((self.batch_size,32*32)).cpu()
+
+        #TODO Try this without normalization
         fake_data=fake_data.view((self.batch_size,32,32))
 
-        avg_fake=fake_data.mean()
-        std_fake=fake_data.std()
-        norm_fake_data=(fake_data-avg_fake)/(std_fake)
         fake_lengths=torch.zeros((self.batch_size))
         real_lengths=real_lengths.cpu().view(-1)
-        for i in range(fake_data.shape[0]):
-            image=norm_fake_data[i]
-            v_hard=self.dp_layer(image)
+        for i in range(self.batch_size):
+            image=fake_data[i]
+            #image=torch.sigmoid(image)
+            theta=self.graph_layer(image)
+            v_hard=self.dp_layer(theta)
             # grad=self.dp_layer.backward(image,E)
 
             # grads[i]=torch.tensor(grad).view(-1)
@@ -260,6 +259,13 @@ class InvNet:
         val_loader=torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
         images, _ = next(iter(train_loader))
         return train_loader,val_loader
+
+    def norm_data(self,data):
+        avg = data.mean()
+        std = data.std()
+
+        normed = (data - avg) / (std / 0.8)
+        return normed
 
     def log(self,stats):
         # ------------------VISUALIZATION----------
@@ -325,7 +331,8 @@ class InvNet:
 
         for i in range(fake_data.shape[0]):
             image=normed_fake[i].view((32,32))
-            v_hard=self.dp_layer(image)
+            theta=self.graph_layer(image)
+            v_hard=self.dp_layer(theta)
 
             fake_lengths[i]=v_hard
 
