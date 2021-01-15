@@ -46,4 +46,4 @@ class SPLayer(Function):
 
 def hard_v(image,idx2loc,adj_map):
     theta = compute_distances(image,idx2loc,adj_map)
-    return hard_sp(theta,adj_map)
+    return hard_sp(np.array(theta),adj_map)
