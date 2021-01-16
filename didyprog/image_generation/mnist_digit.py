@@ -79,7 +79,7 @@ def make_graph(max_i,max_j):
 def compute_distances(image,idx_to_loc,map):
     image=image.squeeze()
     n_nodes=len(idx_to_loc)
-    theta=np.zeros((n_nodes,4))
+    theta=torch.zeros((n_nodes,4))
     for i in range(len(idx_to_loc)):
         lst = list(map[i])
         cur_loc=idx_to_loc[i]
@@ -91,7 +91,7 @@ def compute_distances(image,idx_to_loc,map):
                 lst[j]=(cur_val+im_level)**2
             else:
                 lst[j]=-1*float('inf')
-        values=np.array(lst)
+        values=torch.tensor(lst)
         theta[i,:]=values
     return theta
 
