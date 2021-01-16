@@ -34,17 +34,16 @@ class GraphLayer(Function):
 
     @staticmethod
     def backward(ctx,E):
-        image = ctx.saved_tensors[0]
-        max_i, max_j = image.shape
+        images = ctx.saved_tensors[0]
+        batch_size,max_i, max_j = images.shape
 
-        local_grad_forward = torch.zeros((max_i, max_j, 4))
+        local_grad_forward = torch.zeros((batch_size,max_i, max_j, 4))
         """Local grad forward is E but indexed based on on location instead of index"""
-        for idx, location in enumerate(idxloc):
-            i, j = location
+        for idx in enumerate(max_i*max_j):
+            i, j = idxloc(max_j,idx)
             local_grad_forward[i, j] = E[idx]
 
-        minus_east, minus_se, minus_s, minus_sw = compute_diff(image, add=True)
-
+        minus_east, minus_se, minus_s, minus_sw = compute_diff(images, add=True)
         e_deriv = 2 * minus_east
         se_deriv = 2 * minus_se
         s_deriv = 2 * minus_s

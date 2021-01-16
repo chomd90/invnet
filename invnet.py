@@ -70,11 +70,12 @@ class InvNet:
 
         for iteration in range(iters):
             print('iteration:',iteration)
-            start_time=time.time()
+
 
             gen_cost,real_p1=self.generator_update()
-
+            start_time = time.time()
             proj_cost=self.proj_update()
+            proj_time=time.time()-start_time
             stats=self.critic_update()
             add_stats={'start':start_time,
                        'iteration':iteration,
@@ -169,7 +170,7 @@ class InvNet:
             return 0
         start=timer()
         real_data = self.sample()
-        images = real_data[0].detach()
+        images = real_data[0].detach().to(self.device)
         real_lengths = self.real_lengths(images).view(-1, 1).to(device)
         # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
@@ -194,13 +195,11 @@ class InvNet:
         fake_data=fake_data.view((self.batch_size,32,32))
 
         fake_lengths=torch.zeros((self.batch_size))
-        real_lengths=real_lengths.cpu().view(-1)
+        real_lengths=real_lengths.view(-1)
         thetas=self.graph_layer(fake_data)
         for i in range(self.batch_size):
-            image=fake_data[i]
             #image=torch.sigmoid(image)
-            theta=self.graph_layer(image)
-            v_hard=self.dp_layer(theta)
+            v_hard=self.dp_layer(thetas[i])
             fake_lengths[i]=v_hard
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss

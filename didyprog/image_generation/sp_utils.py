@@ -13,38 +13,39 @@ def compute_diff(image,add=True):
     '''
     coeff=-1 if add else 1
     device=image.device
+    batch_size,max_i,max_j=image.shape
 
-    zips= torch.zeros(image.shape[-1],dtype=torch.float).view(1,-1).to(device)
-    zips_above=torch.cat([zips,image])
-    zips_below=torch.cat([image,zips])
+    zips= torch.zeros((batch_size,1,max_j),dtype=torch.float).to(device)
+    zips_above=torch.cat([zips,image],dim=1)
+    zips_below=torch.cat([image,zips], dim=1)
     minus_below = zips_above - coeff*zips_below
-    minus_below = minus_below[1:, :]
-    minus_below[-1, :] = 0
+    minus_below = minus_below[:,1:, :]
+    minus_below[:,-1, :] = 0
 
-    zips = torch.zeros(image.shape[-1],dtype=torch.float).view(-1,1).to(device)
-    right_side = torch.cat([image, zips], axis=1)
-    left_side = torch.cat([zips, image], axis=1)
+    zips = torch.zeros((batch_size,max_i,1),dtype=torch.float).to(device)
+    right_side = torch.cat([image, zips], axis=2)
+    left_side = torch.cat([zips, image], axis=2)
     minus_right = left_side - coeff*right_side
-    minus_right = minus_right[:, 1:]
-    minus_right[:, -1] = 0
+    minus_right = minus_right[:,:, 1:]
+    minus_right[:,:, -1] = 0
 
-    zips = torch.zeros(image.shape[-1],dtype=torch.float).view(-1,1).to(device)
-    zips_and_across= torch.zeros(image.shape[-1]+1,dtype=torch.float).view(1,-1).to(device)
-    to_right=torch.cat([image,zips],axis=1)
-    zip_se=torch.cat([to_right,zips_and_across])
-    to_left=torch.cat([zips,image],axis=1)
-    zip_nw=torch.cat([zips_and_across,to_left])
+    zips = torch.zeros((batch_size,max_i,1),dtype=torch.float).to(device)
+    zips_and_across= torch.zeros((1,1,max_j+1),dtype=torch.float).to(device)
+    to_right=torch.cat([image,zips],axis=2)
+    zip_se=torch.cat([to_right,zips_and_across],axis=1)
+    to_left=torch.cat([zips,image],axis=2)
+    zip_nw=torch.cat([zips_and_across,to_left],axis=1)
     minus_se = zip_nw - coeff * zip_se
-    minus_se = minus_se[1:,1:]
-    minus_se[-1,:]=0
-    minus_se[:,-1]=0
+    minus_se = minus_se[:,1:,1:]
+    minus_se[:,-1,:]=0
+    minus_se[:,:,-1]=0
 
-    zips_ne = torch.cat([zips_and_across,to_right])
-    zips_sw = torch.cat([to_left,zips_and_across])
+    zips_ne = torch.cat([zips_and_across,to_right],axis=1)
+    zips_sw = torch.cat([to_left,zips_and_across],axis=1)
     minus_sw = zips_ne - coeff*zips_sw
-    minus_sw = minus_sw[1:,:-1]
-    minus_sw[:,0] = 0
-    minus_sw[-1,:] = 0
+    minus_sw = minus_sw[:,1:,:-1]
+    minus_sw[:,:,0] = 0
+    minus_sw[:,-1,:] = 0
     return minus_right,minus_se,minus_below,minus_sw
 
 def idxloc(size_j,idx):

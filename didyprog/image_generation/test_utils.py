@@ -6,7 +6,8 @@ def test_compute_diff():
     cuda_available = torch.cuda.is_available()
     device = torch.device(0 if cuda_available else "cpu")
 
-    image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=torch.float)#.to(device) #TODO go on device when cuda working
+    image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=torch.float).to(device)
+    image=image.unsqueeze(0)
     directions = list(compute_diff(image))
 
     one=torch.tensor([[ 6. ,14. , 0.], [ 8. ,18.  ,0.],[ 9.,  3. , 0.]]).to(device)
@@ -15,5 +16,9 @@ def test_compute_diff():
     four=torch.tensor([[ 0. , 7., 15.],[ 0., 13., 14.], [ 0.,  0.,  0.]]).to(device)
 
     true_directions=[one,two,three,four]
-    for i,dir in enumerate(directions):
-        assert (dir-true_directions[i]).sum().item()==0
+    for i,dir in enumerate(true_directions):
+        true_directions[i]=dir.unsqueeze(0)
+    for dir_idx,dir in enumerate(directions):
+        for i in range(3):
+            for j in range(3):
+                assert true_directions[dir_idx][0,i,j]==dir[0,i,j]
