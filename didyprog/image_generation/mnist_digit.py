@@ -76,22 +76,22 @@ def make_graph(max_i,max_j):
         rev_map[sw_i][3] = i
     return loc_to_idx,idx_to_loc,map,rev_map
 
-def compute_distances(image,idx_to_loc,map):
-    max_i,max_j=image.shape
-    image=image.squeeze()
+def compute_distances(images):
+    batch_size,max_i,max_j=images.shape
     n_nodes=max_i*max_j
-    theta=torch.zeros((n_nodes,4))
-    for i in range(n_nodes):
-        children=adjacency(i,max_i,max_j)
-        cur_loc=idxloc(max_j,i)
-        cur_val=image[cur_loc]
-        for j,child_idx in enumerate(children):
-            if child_idx is not None:
-                child_loc=idxloc(max_j,child_idx)
-                im_level=image[child_loc]
-                theta[i][j]=(cur_val+im_level)**2
-            else:
-                theta[i][j]=-1*float('inf')
+    theta=torch.zeros((batch_size,n_nodes,4))
+    for batch,image in enumerate(images):
+        for i in range(n_nodes):
+            children=adjacency(i,max_i,max_j)
+            cur_loc=idxloc(max_j,i)
+            cur_val=image[cur_loc]
+            for j,child_idx in enumerate(children):
+                if child_idx is not None:
+                    child_loc=idxloc(max_j,child_idx)
+                    im_level=image[child_loc]
+                    theta[batch,i,j]=(cur_val+im_level)**2
+                else:
+                    theta[batch,i,j]=-1*float('inf')
     return theta
 
 def get_image_graph():

@@ -29,7 +29,7 @@ class GraphLayer(Function):
             '''
         image = input
         ctx.save_for_backward(input)
-        theta = compute_distances(image, idxloc, adjacency)
+        theta = compute_distances(image)
         return theta
 
     @staticmethod
