@@ -4,30 +4,7 @@ from didyprog.image_generation.sp_utils import compute_diff
 from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 import torch
 from torch.autograd import Function,Variable
-
-_,idx2loc,adj_map,rev_map=make_graph(32,32)
-
-def idxloc(size_j,idx):
-    return idx//size_j,idx%size_j
-
-def locidx(size_j,idx_i,idx_j):
-    return size_j*idx_i + idx_j
-
-def adjacency(idx,max_i,max_j):
-    i,j=idxloc(32,idx)
-    if j<max_j-1:
-        yield idx+1
-        if i<max_i-1:
-            yield idx+max_j+1
-        else:
-            yield None
-    else:
-        yield None,None
-    if i<max_i-1:
-        yield idx+max_j
-        if j>0:
-            yield idx+max_j-1
-
+from didyprog.image_generation.sp_utils import idxloc,locidx,adjacency
 
 class GraphLayer(Function):
 
@@ -52,7 +29,7 @@ class GraphLayer(Function):
             '''
         image = input
         ctx.save_for_backward(input)
-        theta = compute_distances(image, idx2loc, adj_map)
+        theta = compute_distances(image, idxloc, adjacency)
         return theta
 
     @staticmethod
@@ -62,7 +39,7 @@ class GraphLayer(Function):
 
         local_grad_forward = torch.zeros((max_i, max_j, 4))
         """Local grad forward is E but indexed based on on location instead of index"""
-        for idx, location in enumerate(idx2loc):
+        for idx, location in enumerate(idxloc):
             i, j = location
             local_grad_forward[i, j] = E[idx]
 
@@ -77,20 +54,21 @@ class GraphLayer(Function):
 
         forward_grad = local_grad_forward * forward_effect
         back_grad = torch.zeros_like(forward_grad)
-        for idx, location in enumerate(idx2loc):
-            i, j = location
+        for i in range(max_i):
+            for j in range(max_j):
+                i, j = location
 
-            if j > 0:  # Gradient from westward parent
-                back_grad[i, j, 0] = forward_grad[i, j - 1, 0]
+                if j > 0:  # Gradient from westward parent
+                    back_grad[i, j, 0] = forward_grad[i, j - 1, 0]
 
-            if j > 0 and i > 0:  # Gradient from northwestern parent
-                back_grad[i, j, 1] = forward_grad[i - 1, j - 1, 0]
+                if j > 0 and i > 0:  # Gradient from northwestern parent
+                    back_grad[i, j, 1] = forward_grad[i - 1, j - 1, 0]
 
-            if i > 0:  # Gradient from northern parent
-                back_grad[i, j, 2] = forward_grad[i - 1, j, 2]
+                if i > 0:  # Gradient from northern parent
+                    back_grad[i, j, 2] = forward_grad[i - 1, j, 2]
 
-            if i > 0 and j < max_j - 1:  # Gradient from northeast parent
-                back_grad[i, j, 3] = forward_grad[i - 1, j + 1, 3]
+                if i > 0 and j < max_j - 1:  # Gradient from northeast parent
+                    back_grad[i, j, 3] = forward_grad[i - 1, j + 1, 3]
 
         full_grad = (back_grad + forward_grad).sum(axis=2)
         output= full_grad

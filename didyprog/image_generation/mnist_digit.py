@@ -6,7 +6,7 @@ import numpy as np
 from queue import Queue
 from collections import defaultdict
 from torchvision import transforms,datasets
-
+from didyprog.image_generation.sp_utils import idxloc,locidx,adjacency
 random.seed(0)
 np.random.seed(0)
 def crop(image,size):
@@ -77,22 +77,21 @@ def make_graph(max_i,max_j):
     return loc_to_idx,idx_to_loc,map,rev_map
 
 def compute_distances(image,idx_to_loc,map):
+    max_i,max_j=image.shape
     image=image.squeeze()
-    n_nodes=len(idx_to_loc)
+    n_nodes=max_i*max_j
     theta=torch.zeros((n_nodes,4))
-    for i in range(len(idx_to_loc)):
-        lst = list(map[i])
-        cur_loc=idx_to_loc[i]
+    for i in range(n_nodes):
+        children=adjacency(i,max_i,max_j)
+        cur_loc=idxloc(max_j,i)
         cur_val=image[cur_loc]
-        for j,x in enumerate(lst):
-            if x is not None:
-                loc=idx_to_loc[x]
-                im_level=image[loc]
-                lst[j]=(cur_val+im_level)**2
+        for j,child_idx in enumerate(children):
+            if child_idx is not None:
+                child_loc=idxloc(max_j,child_idx)
+                im_level=image[child_loc]
+                theta[i][j]=(cur_val+im_level)**2
             else:
-                lst[j]=-1*float('inf')
-        values=torch.tensor(lst)
-        theta[i,:]=values
+                theta[i][j]=-1*float('inf')
     return theta
 
 def get_image_graph():

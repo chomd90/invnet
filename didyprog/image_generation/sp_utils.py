@@ -45,13 +45,37 @@ def compute_diff(image,add=True):
     minus_sw = minus_sw[1:,:-1]
     minus_sw[:,0] = 0
     minus_sw[-1,:] = 0
-
     return minus_right,minus_se,minus_below,minus_sw
 
-if __name__=='__main__':
-    # a=np.array([[4,7],[13,6]])
-    # print(compute_diff(a))
+def idxloc(size_j,idx):
+    return idx//size_j,idx%size_j
 
+def locidx(size_j,idx_i,idx_j):
+    return size_j*idx_i + idx_j
+
+def adjacency(idx,max_i,max_j):
+    i,j=idxloc(max_j,idx)
+    if j<max_j-1:
+        yield idx+1
+        if i<max_i-1:
+            yield idx+max_j+1
+        else:
+            yield None
+    else:
+        yield None
+        yield None
+    if i<max_i-1:
+        yield idx+max_j
+        if j>0:
+            yield idx+max_j-1
+        else:
+            yield None
+    else:
+        yield None
+        yield None
+
+
+if __name__=='__main__':
     image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=torch.float)
     right, se, below, sw = compute_diff(image)
     print(right, se, below, sw)

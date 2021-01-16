@@ -19,8 +19,7 @@ import libs as lib
 import libs.plot
 import numpy as np
 import sys
-
-
+import time
 
 class InvNet:
 
@@ -65,6 +64,7 @@ class InvNet:
 
         self.dp_layer=SPLayer.apply
         self.graph_layer=GraphLayer.apply
+        self.start=timer()
 
     def train(self,iters):
 
@@ -169,16 +169,14 @@ class InvNet:
             return 0
         start=timer()
         real_data = self.sample()
-        images = real_data[0].detach().to(self.device)
+        images = real_data[0].detach()
         real_lengths = self.real_lengths(images).view(-1, 1).to(device)
         # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-            # specs=torch.cat([real_class,real_lengths],dim=1)
-            specs=real_lengths
-            fake_data = self.G(noise, specs)
+            fake_data = self.G(noise, real_lengths)
             normed_fake= self.norm_data(fake_data)
             pj_loss=self.proj_loss(normed_fake,real_lengths)
             pj_loss.backward()
@@ -197,14 +195,12 @@ class InvNet:
 
         fake_lengths=torch.zeros((self.batch_size))
         real_lengths=real_lengths.cpu().view(-1)
+        thetas=self.graph_layer(fake_data)
         for i in range(self.batch_size):
             image=fake_data[i]
             #image=torch.sigmoid(image)
             theta=self.graph_layer(image)
             v_hard=self.dp_layer(theta)
-            # grad=self.dp_layer.backward(image,E)
-
-            # grads[i]=torch.tensor(grad).view(-1)
             fake_lengths[i]=v_hard
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
@@ -216,10 +212,8 @@ class InvNet:
         real_lengths = []
         for i in range(images.shape[0]):
             image=images[i]
-            if image not in self.real_length_d:
-                v_hard = hard_v(images[i],idx2loc,adj_map)
-                self.real_length_d[image]=  v_hard
-            real_lengths.append(self.real_length_d[image])
+            v_hard = hard_v(image,idx2loc,adj_map)
+            real_lengths.append(v_hard)
         real_lengths=torch.tensor(real_lengths)
         return real_lengths.view(-1,1)
 
