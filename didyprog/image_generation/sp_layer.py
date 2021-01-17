@@ -1,7 +1,7 @@
 import numpy as np
 from didyprog.didyprog.reference.shortest_path import sp_forward,sp_grad,hard_sp
-from didyprog.image_generation.sp_utils import compute_diff
-from didyprog.image_generation.mnist_digit import make_graph,compute_distances
+from didyprog.image_generation.sp_utils import compute_diff,compute_distances
+from didyprog.image_generation.mnist_digit import make_graph
 import math
 import torch
 import torch.nn as nn
@@ -32,9 +32,9 @@ class SPLayer(Function):
             '''
         theta = input.clone().detach().cpu().numpy()
         v_hard,v,Q = sp_forward(theta, adj_map, 'softmax')
-        v_hard,v,Q=torch.tensor(v_hard),torch.tensor(v),torch.tensor(Q)
+        v_hard,v,Q=torch.tensor(v_hard).to(input.device),torch.tensor(v),torch.tensor(Q)
         ctx.save_for_backward(v_hard,v,Q)
-        return v_hard.to(input.device)
+        return v_hard
 
     @staticmethod
     def backward(ctx,v_grad):
@@ -42,7 +42,7 @@ class SPLayer(Function):
         '''v_grad is the gradient of the loss with respect to v_hard'''
         v_hard,v,Q = ctx.saved_tensors
         E, E_hat =sp_grad(Q,rev_map)
-        return torch.tensor(E,dtype=torch.float)
+        return torch.tensor(E,dtype=torch.float).to(v_hard.device)
 
 def hard_v(image,idx2loc,adj_map):
     theta = compute_distances(image)

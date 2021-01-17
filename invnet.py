@@ -12,7 +12,6 @@ from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
 from didyprog.image_generation.sp_layer import SPLayer,hard_v,idx2loc,adj_map
 from didyprog.image_generation.graph_layer import GraphLayer
-from didyprog.image_generation.mnist_digit import make_graph,compute_distances
 from config import *
 import pickle
 import libs as lib
@@ -96,8 +95,9 @@ class InvNet:
             p.requires_grad_(False)
 
         real_data= self.sample()
+        real_images=real_data[0].to(self.device)
         #real_class = F.one_hot(real_data[1], num_classes=10)
-        real_lengths=self.real_lengths(real_data[0])
+        real_lengths=self.real_lengths(real_images)
         # real_class = real_class.float()
         # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
         real_p1=real_lengths.to(self.device)
@@ -171,7 +171,7 @@ class InvNet:
         start=timer()
         real_data = self.sample()
         images = real_data[0].detach().to(self.device)
-        real_lengths = self.real_lengths(images).view(-1, 1).to(device)
+        real_lengths = self.real_lengths(images).view(-1, 1)
         # real_class = F.one_hot(real_data[1], num_classes=10).float().to(self.device)
         for iteration in range(self.proj_iters):
             self.G.zero_grad()
@@ -194,7 +194,7 @@ class InvNet:
         #TODO Try this without normalization
         fake_data=fake_data.view((self.batch_size,32,32))
 
-        fake_lengths=torch.zeros((self.batch_size))
+        fake_lengths=torch.zeros((self.batch_size),dtype=torch.float).to(self.device)
         real_lengths=real_lengths.view(-1)
         thetas=self.graph_layer(fake_data)
         for i in range(self.batch_size):
@@ -207,13 +207,14 @@ class InvNet:
     def real_lengths(self,images):
         #TODO Find a way to parallelize this
         #https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html
-
+        images=torch.squeeze(images)
         real_lengths = []
+        thetas=self.graph_layer(images)
         for i in range(images.shape[0]):
-            image=images[i]
-            v_hard = hard_v(image,idx2loc,adj_map)
-            real_lengths.append(v_hard)
-        real_lengths=torch.tensor(real_lengths)
+            theta=thetas[i]
+            length=self.dp_layer(theta)
+            real_lengths.append(length)
+        real_lengths=torch.stack(real_lengths)
         return real_lengths.view(-1,1)
 
     def sample(self,train=True):
@@ -321,10 +322,10 @@ class InvNet:
 
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
         fake_lengths=torch.zeros((fake_data.shape[0]))
-
+        normed_fake=normed_fake.view(-1,32,32).to(self.device)
+        thetas=self.graph_layer(normed_fake)
         for i in range(fake_data.shape[0]):
-            image=normed_fake[i].view((32,32))
-            theta=self.graph_layer(image)
+            theta=thetas[i]
             v_hard=self.dp_layer(theta)
 
             fake_lengths[i]=v_hard

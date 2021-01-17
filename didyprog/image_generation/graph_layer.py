@@ -1,10 +1,10 @@
 import numpy as np
 from didyprog.didyprog.reference.shortest_path import sp_forward,sp_grad,hard_sp
 from didyprog.image_generation.sp_utils import compute_diff
-from didyprog.image_generation.mnist_digit import make_graph,compute_distances
+from didyprog.image_generation.mnist_digit import make_graph
 import torch
 from torch.autograd import Function,Variable
-from didyprog.image_generation.sp_utils import idxloc,locidx,adjacency
+from didyprog.image_generation.sp_utils import idxloc,locidx,adjacency,compute_distances
 
 class GraphLayer(Function):
 
@@ -37,11 +37,7 @@ class GraphLayer(Function):
         images = ctx.saved_tensors[0]
         batch_size,max_i, max_j = images.shape
 
-        local_grad_forward = torch.zeros((batch_size,max_i, max_j, 4))
-        """Local grad forward is E but indexed based on on location instead of index"""
-        for idx in enumerate(max_i*max_j):
-            i, j = idxloc(max_j,idx)
-            local_grad_forward[i, j] = E[idx]
+        local_grad_forward = E.view(batch_size,max_i,max_j,4)
 
         minus_east, minus_se, minus_s, minus_sw = compute_diff(images, add=True)
         e_deriv = 2 * minus_east
@@ -49,27 +45,30 @@ class GraphLayer(Function):
         s_deriv = 2 * minus_s
         sw_deriv = 2 * minus_sw
 
-        forward_effect = torch.stack([e_deriv, se_deriv, s_deriv, sw_deriv], axis=2)
+        forward_effect = torch.stack([e_deriv, se_deriv, s_deriv, sw_deriv], axis=3)
 
         forward_grad = local_grad_forward * forward_effect
-        back_grad = torch.zeros_like(forward_grad)
-        for i in range(max_i):
-            for j in range(max_j):
-                i, j = location
 
-                if j > 0:  # Gradient from westward parent
-                    back_grad[i, j, 0] = forward_grad[i, j - 1, 0]
+        west_grad=torch.roll(e_deriv,1,2)
+        west_grad[:,:,0]=0
 
-                if j > 0 and i > 0:  # Gradient from northwestern parent
-                    back_grad[i, j, 1] = forward_grad[i - 1, j - 1, 0]
+        nw_grad=torch.roll(se_deriv,1,1)
+        nw_grad[:,0,:]=0
+        nw_grad=torch.roll(nw_grad,1,2)
+        nw_grad[:,:,0]=0
 
-                if i > 0:  # Gradient from northern parent
-                    back_grad[i, j, 2] = forward_grad[i - 1, j, 2]
+        north_grad=torch.roll(s_deriv,1,1)
+        north_grad[:,0,:]=0
 
-                if i > 0 and j < max_j - 1:  # Gradient from northeast parent
-                    back_grad[i, j, 3] = forward_grad[i - 1, j + 1, 3]
+        ne_grad = torch.roll(sw_deriv, 1, 1)
+        ne_grad[:, 0, :]=0
+        ne_grad = torch.roll(ne_grad, -1, 2)
+        ne_grad[:, :, -1]=0
 
-        full_grad = (back_grad + forward_grad).sum(axis=2)
+        back_effect=torch.stack([west_grad,nw_grad,north_grad,ne_grad],axis=3)
+
+
+        full_grad = (back_effect + forward_grad).sum(axis=3)
         output= full_grad
         return output
 
