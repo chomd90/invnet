@@ -1,6 +1,6 @@
 from didyprog.image_generation.sp_utils import  compute_diff
 import torch
-from config import InvNetConfig
+
 
 def test_compute_diff():
     cuda_available = torch.cuda.is_available()

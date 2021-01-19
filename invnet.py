@@ -10,7 +10,8 @@ import time
 import os
 from graph.utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-from didyprog.image_generation.sp_layer import SPLayer,hard_v,idx2loc,adj_map
+from didyprog.image_generation.sp_utils import adjacency_function
+from didyprog.image_generation.sp_layer import SPLayer,hard_v
 from didyprog.image_generation.graph_layer import GraphLayer
 from config import *
 import pickle
@@ -23,12 +24,13 @@ import time
 class InvNet:
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
-                 proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
+                 proj_iters,output_dim,hidden_size,device,lambda_gp,max_i=32,max_j=32,restore_mode=False):
         self.writer = SummaryWriter()
         print('output dir:',self.writer.logdir)
 
         self.device=device
 
+        self.max_i,self.max_j=max_i,max_j
         self.data_dir=data_dir
         self.output_path=output_path
         if not os.path.exists(output_path):
@@ -87,8 +89,6 @@ class InvNet:
                 self.save(stats)
             lib.plot.tick()
 
-
-
     def generator_update(self):
         start=timer()
         for p in self.D.parameters():
@@ -116,6 +116,7 @@ class InvNet:
             gen_cost = -gen_cost
 
             self.optim_g.step()
+
 
         end=timer()
         # print('--generator update elapsed time:',end-start)
@@ -166,8 +167,6 @@ class InvNet:
         return stats
 
     def proj_update(self):
-        if self.proj_iters==0:
-            return 0
         start=timer()
         real_data = self.sample()
         images = real_data[0].detach().to(self.device)
@@ -177,7 +176,7 @@ class InvNet:
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-            fake_data = self.G(noise, real_lengths)
+            fake_data = self.G(noise, real_lengths).view(-1,self.max_i,self.max_j)
             normed_fake= self.norm_data(fake_data)
             pj_loss=self.proj_loss(normed_fake,real_lengths)
             pj_loss.backward()
@@ -188,19 +187,15 @@ class InvNet:
         return pj_loss
 
     def proj_loss(self,fake_data,real_lengths):
-        #TODO parallelize this
         #TODO get numpy operations on gpu
 
         #TODO Try this without normalization
-        fake_data=fake_data.view((self.batch_size,32,32))
-
-        fake_lengths=torch.zeros((self.batch_size),dtype=torch.float).to(self.device)
         real_lengths=real_lengths.view(-1)
+        b,max_i,max_j=fake_data.shape
+        adj=adjacency_function(max_i,max_j)
         thetas=self.graph_layer(fake_data)
-        for i in range(self.batch_size):
-            #image=torch.sigmoid(image)
-            v_hard=self.dp_layer(thetas[i])
-            fake_lengths[i]=v_hard
+        fake_lengths = self.dp_layer(thetas,adj)
+
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
@@ -208,13 +203,10 @@ class InvNet:
         #TODO Find a way to parallelize this
         #https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html
         images=torch.squeeze(images)
-        real_lengths = []
+        b, max_i, max_j = images.shape
+        adj = adjacency_function(max_i, max_j)
         thetas=self.graph_layer(images)
-        for i in range(images.shape[0]):
-            theta=thetas[i]
-            length=self.dp_layer(theta)
-            real_lengths.append(length)
-        real_lengths=torch.stack(real_lengths)
+        real_lengths=self.dp_layer(thetas,adj)
         return real_lengths.view(-1,1)
 
     def sample(self,train=True):
@@ -269,10 +261,10 @@ class InvNet:
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
-        lib.plot.plot(self.output_path + 'time', time.time() - stats['start'])
-        lib.plot.plot(self.output_path + 'train_disc_cost', stats['disc_cost'].cpu().data.numpy())
-        lib.plot.plot(self.output_path + 'train_gen_cost', stats['gen_cost'].cpu().data.numpy())
-        lib.plot.plot(self.output_path + 'wasserstein_distance', stats['w_dist'].cpu().data.numpy())
+        # lib.plot.plot(self.output_path + 'time', time.time() - stats['start'])
+        # lib.plot.plot(self.output_path + 'train_disc_cost', stats['disc_cost'].cpu().data.numpy())
+        # lib.plot.plot(self.output_path + 'train_gen_cost', stats['gen_cost'].cpu().data.numpy())
+        # lib.plot.plot(self.output_path + 'wasserstein_distance', stats['w_dist'].cpu().data.numpy())
 
     def save(self,stats):
         start=timer()
@@ -293,8 +285,8 @@ class InvNet:
             D = self.D(imgs_v)
             _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
-        lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
-        lib.plot.flush()
+        # lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
+        # lib.plot.flush()
         gen_images = generate_image(self.G, 4,noise=self.fixed_noise,device=self.device)
         real_images=stats['real_data'][0]
         mean=gen_images.mean()
@@ -311,7 +303,7 @@ class InvNet:
         torch.save(self.D, self.output_path + 'discriminator.pt')
 
         val_batch=self.sample(train=False)
-        images = val_batch[0].detach()
+        images = val_batch[0].detach().to(self.device)
         real_lengths = self.real_lengths(images)
 
         noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
@@ -321,31 +313,23 @@ class InvNet:
         fake_std = fake_data.std()
 
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
-        fake_lengths=torch.zeros((fake_data.shape[0]))
         normed_fake=normed_fake.view(-1,32,32).to(self.device)
+        adj = adjacency_function(32, 32)
         thetas=self.graph_layer(normed_fake)
-        for i in range(fake_data.shape[0]):
-            theta=thetas[i]
-            v_hard=self.dp_layer(theta)
-
-            fake_lengths[i]=v_hard
-
+        fake_lengths=self.dp_layer(thetas,adj)
         diff=fake_lengths-real_lengths.squeeze()
         val_proj_err=(diff**2).mean()
 
-
-
         self.writer.add_hparams({'proj_iters': self.proj_iters,
-                                 'critic_iters':self.critic_iters},
+                                 'critic_iters':self.critic_iters,
+                                 'gen_cost:':stats['gen_cost']},
                                 {'projection_loss': val_proj_err,
-                                 'disc_cost': stats['disc_cost']})
+                                 'disc_cost': stats['disc_cost'],
+                                 'gen_cost:':stats['gen_cost']})
 
-        end=timer()
         # print('--Save elapsed time:',end-start)
 
 if __name__=='__main__':
-
-
     config=InvNetConfig()
 
 

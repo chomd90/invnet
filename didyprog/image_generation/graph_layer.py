@@ -1,10 +1,7 @@
-import numpy as np
-from didyprog.didyprog.reference.shortest_path import sp_forward,sp_grad,hard_sp
 from didyprog.image_generation.sp_utils import compute_diff
-from didyprog.image_generation.mnist_digit import make_graph
 import torch
-from torch.autograd import Function,Variable
-from didyprog.image_generation.sp_utils import idxloc,locidx,adjacency,compute_distances
+from torch.autograd import Function
+from didyprog.image_generation.sp_utils import compute_distances
 
 class GraphLayer(Function):
 
