@@ -24,6 +24,7 @@ class InvNet:
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
         self.writer = SummaryWriter()
+        print('writer:',self.writer.logdir)
 
         self.device=device
 
@@ -79,8 +80,15 @@ class InvNet:
 
             self.log(stats)
             if iteration%10==0:
-                self.save(stats)
+                val_proj_err=self.save(stats)
             lib.plot.tick()
+
+        self.writer.add_hparams({'proj_iters': self.proj_iters,
+                                 'critic_iters': self.critic_iters,
+                                 'version':'master_12_3',
+                                 'flip_sign':False},
+                                {'projection_loss': val_proj_err,
+                                 'disc_cost': stats['disc_cost']})
 
 
 
@@ -343,13 +351,7 @@ class InvNet:
         diff=fake_lengths-real_lengths.squeeze()
         val_proj_err=(diff**2).mean()
 
-
-
-        self.writer.add_hparams({'proj_iters': self.proj_iters,
-                                 'critic_iters':self.critic_iters},
-                                {'projection_loss': val_proj_err,
-                                 'disc_cost': stats['disc_cost']})
-
+        return val_proj_err
         end=timer()
         # print('--Save elapsed time:',end-start)
 
@@ -368,5 +370,5 @@ if __name__=='__main__':
     invnet=InvNet(config.batch_size,config.output_path,config.data_dir,
                   config.lr,config.critic_iter,config.proj_iter,32*32,
                   config.hidden_size,device,config.lambda_gp)
-    invnet.train(30000)
+    invnet.train(1)
     #TODO fix proj_loss reporting
