@@ -1,15 +1,29 @@
 import numpy as np
-from didyprog.didyprog.reference.shortest_path import sp_grad,hard_sp
-from didyprog.image_generation.sp_utils import compute_diff
-from didyprog.image_generation.mnist_digit import make_graph,compute_distances
-import math
-class SPLayer:
+from didyprog.didyprog.reference.shortest_path import sp_forward,sp_grad,hard_sp
+from didyprog.image_generation.sp_utils import compute_distances,adjacency_function
+from didyprog.image_generation.mnist_digit import make_graph
+import torch
+from torch.autograd import Function
+import itertools
+
+def sm(options):
+    max_x=torch.max(options,dim=1)[0].view(-1,1)
+    exp_x=torch.exp(options-max_x)
+    Z=torch.sum(exp_x,dim=1).unsqueeze(-1)
+    smooth_max=(torch.log(Z) + max_x).squeeze()
+    probs=exp_x/Z
+    smooth_max[smooth_max!=smooth_max]=-1*float('inf')
+    probs[probs!=probs]=0
+    return smooth_max,probs
+
+
+class SPLayer(Function):
 
     def __init__(self):
+        super(SPLayer,self).__init__()
 
-        _,self.idx2loc,self.adj_map,self.rev_map=make_graph(32,32)
-
-    def forward(self,image):
+    @staticmethod
+    def forward(ctx,input,adj):
         '''
             Parameters
             ----------
@@ -24,65 +38,55 @@ class SPLayer:
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        pos_image= 1/(1+np.exp(-image))
-        theta= compute_distances(pos_image,self.idx2loc,self.adj_map)
-        v, E, Q, E_hat,v_hard = sp_grad(theta, self.adj_map, self.rev_map,'softmax')
-        return v,E,v_hard
+        thetas = input
+        batch_size,n_nodes,_= thetas.shape
+        assert n_nodes>1
+        V=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+        #V is inverted here so that indexing can be used without inverting slices individually
+        V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+        Q=torch.zeros((batch_size,n_nodes,4)).to(input.device)
+        rev=torch.full((n_nodes,4),n_nodes,dtype=torch.long).to(input.device)
+        for a in [V,V_hard]:
+            a[:,-1],a[:-2]= -1*float('inf'),0
+        for i in reversed(range(n_nodes-1)):
+            theta=thetas[:,i,:]
+            idxs=tuple(adj(i,replace=n_nodes))
+            for dir,idx in enumerate(idxs):
+                if idx<n_nodes:
+                    rev[idx,dir]=i
+            values=torch.stack([V[:,i] for i in idxs],dim=1)
+            options=values+theta
+            soft=sm(options)
+            V[:,i],Q[:,i,:]=soft[0],soft[1]
+            V_hard[:,i]=torch.max(options,dim=1)[0]
+        v_hard=V_hard[:,0]
+        ctx.save_for_backward(v_hard,Q,rev)
+        return v_hard
 
-    def backward(self,image, E):
-        '''
-        Parameters
-        ----------
-        image: numpy.ndarray
-         shape nxn
-        E: numpy.ndarray
-         Shape of nx4 - Gradient of the loss with respect to the edge weights
-        idx_to_loc: list
-         Gives the i,j location of each node based on index
-        Returns
-        -------
-        full_grad: numpy.ndarray
-         Gradient of the loss with respect to the pixel intensities
-        '''
+    @staticmethod
+    def backward(ctx,v_grad):
+        #TODO Split this into graph creation derivative and shortest paths derivative
+        '''v_grad is the gradient of the loss with respect to v_hard'''
+        v_hard,Q,rev = ctx.saved_tensors
+        b,n,_=Q.shape
+        E_hat=torch.zeros((b,n+1),dtype=torch.float,device=Q.device)
+        E = torch.zeros((b,n,4),dtype=torch.float,device=Q.device)
 
-        minus_east,minus_se,minus_s,minus_sw = compute_diff(image,add=True)
-        # below_{i,j} = P_{i,j} - P_{i+1,j}
+        E[:,0,:]=Q[:,0,:]
+        E_hat[:,0]=1
+        for i in range(1,n):
+            back_idxs=rev[i].tolist()
+            total=torch.zeros((b),dtype=torch.float,device=Q.device)
+            for dir_idx,dir in enumerate(back_idxs):
+                if dir <n:
+                    parent=Q[:,i,dir_idx]*E_hat[:,dir_idx]
+                    #E_hat is total effect of parent node on loss
+                    #so parent represents the current node's effect on parent
+                    total+=parent
+                    E[:,i,dir_idx]=parent
+            E_hat[:,i]=total
+        return E,None
 
-        max_i, max_j = image.shape
-
-        local_grad_forward = np.zeros((max_i, max_j, 4))
-        """Local grad forward is E but indexed based on on location instead of index"""
-        for idx, location in enumerate(self.idx2loc):
-            i, j = location
-            local_grad_forward[i, j] = E[idx]
-
-        e_deriv = 2*minus_east
-        se_deriv = 2*minus_se
-        s_deriv= 2*minus_s
-        sw_deriv= 2*minus_sw
-
-        forward_effect = np.stack([e_deriv,se_deriv,s_deriv,sw_deriv], axis=2)
-
-        forward_grad = local_grad_forward * forward_effect
-        back_grad = np.zeros_like(forward_grad)
-        for idx, location in enumerate(self.idx2loc):
-            i, j = location
-
-            if j > 0: #Gradient from westward parent
-                back_grad[i, j, 0] = forward_grad[i, j - 1, 0]
-
-            if j>0 and i>0: #Gradient from northwestern parent
-                back_grad[i,j,1] = forward_grad[i-1, j - 1, 0]
-
-            if i > 0:#Gradient from northern parent
-                back_grad[i, j, 2] =  forward_grad[i - 1, j, 2]
-
-            if i>0 and j<max_j-1:#Gradient from northeast parent
-                back_grad[i, j, 3] = forward_grad[i - 1, j+1, 3]
-
-        full_grad = (back_grad + forward_grad).sum(axis=2)
-        return full_grad
-
-    def hard_v(self,image):
-        theta = compute_distances(image, self.idx2loc, self.adj_map)
-        return hard_sp(theta,self.adj_map)
+def hard_v(image,idx2loc,adj_map):
+    theta = compute_distances(image)
+    return hard_sp(np.array(theta),adj_map)

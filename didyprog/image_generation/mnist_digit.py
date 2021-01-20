@@ -1,9 +1,7 @@
-import torch, torchvision
+import torch
 import matplotlib.pyplot as plt
-import math
 import random
 import numpy as np
-from queue import Queue
 from collections import defaultdict
 from torchvision import transforms,datasets
 
@@ -76,42 +74,6 @@ def make_graph(max_i,max_j):
         rev_map[sw_i][3] = i
     return loc_to_idx,idx_to_loc,map,rev_map
 
-def compute_distances(image,idx_to_loc,map):
-    image=image.squeeze()
-    n_nodes=len(idx_to_loc)
-    theta=np.zeros((n_nodes,4))
-    for i in range(len(idx_to_loc)):
-        lst = list(map[i])
-        cur_loc=idx_to_loc[i]
-        cur_val=image[cur_loc]
-        for j,x in enumerate(lst):
-            if x is not None:
-                loc=idx_to_loc[x]
-                im_level=image[loc]
-                lst[j]=(cur_val+im_level)**2
-            else:
-                lst[j]=-1*float('inf')
-        values=np.array(lst)
-        theta[i]=values
-    return theta
-
-def get_image_graph():
-    image=get_cropped_image()
-    edges,loc_to_idx,idx_to_loc=make_graph(image)
-    return edges,loc_to_idx,idx_to_loc
-
-
-def prune_graph(edges,loc_to_idx,idx_to_loc):
-    visited_idxs,max_idx=get_max_idx(loc_to_idx,idx_to_loc)
-    edges=edges[:max_idx,:max_idx]
-    removable_locs=[]
-    for i,loc in enumerate(idx_to_loc):
-        if i>max_idx:
-            removable_locs.append(loc)
-    for loc in removable_locs:
-        del loc_to_idx[loc]
-        idx_to_loc.remove(loc)
-    return edges,loc_to_idx,idx_to_loc
 
 def get_max_idx(loc_to_idx,idx_to_loc):
     visited_idxs={}
@@ -130,17 +92,9 @@ def get_max_idx(loc_to_idx,idx_to_loc):
         visited_idxs[idx]=True
     return visited_idxs,max_idx
 
-def get_pruned_graph():
-    image = get_cropped_image()
-    edges, loc_to_idx, idx_to_loc = make_graph(image)
-    edges, loc_to_idx, idx_to_loc =prune_graph(edges, loc_to_idx, idx_to_loc)
-    return edges, loc_to_idx, idx_to_loc
-
-
 if __name__=='__main__':
     image=get_cropped_image()
     edges,loc_to_idx,idx_to_loc=make_graph(image)
-    p_edges,p_loc,p_idx=prune_graph(edges,loc_to_idx,idx_to_loc)
     plt.imshow(image)
     plt.show()
 
