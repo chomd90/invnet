@@ -1,19 +1,16 @@
 import math
-import torch
 import torch.nn.functional as F
 import torchvision
 from torchvision import transforms, datasets
 from models.wgan import *
 from tensorboardX import SummaryWriter
 from timeit import default_timer as timer
-import time
 import os
-from graph.utils import calc_gradient_penalty,gen_rand_noise,\
+from utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-from didyprog.image_generation.sp_layer import SPLayer,hard_v,idx2loc,adj_map
-from didyprog.image_generation.graph_layer import GraphLayer
+from layers.sp_layer import SPLayer
+from layers.graph_layer import GraphLayer
 from config import *
-import pickle
 import libs as lib
 import libs.plot
 import numpy as np
