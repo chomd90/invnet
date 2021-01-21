@@ -10,6 +10,7 @@ from utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
 from layers.sp_layer import SPLayer
 from layers.graph_layer import GraphLayer
+from layers.mnist_digit import make_graph
 from config import *
 import libs as lib
 import libs.plot
@@ -20,7 +21,7 @@ import time
 class InvNet:
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
-                 proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode=False):
+                 proj_iters,output_dim,hidden_size,device,lambda_gp,max_i=32,max_j=32,restore_mode=False):
         self.writer = SummaryWriter()
         print('output dir:',self.writer.logdir)
 
@@ -58,6 +59,7 @@ class InvNet:
 
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
+        _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
         self.dp_layer=SPLayer.apply
         self.graph_layer=GraphLayer.apply
         self.start=timer()
@@ -194,10 +196,7 @@ class InvNet:
         fake_lengths=torch.zeros((self.batch_size),dtype=torch.float).to(self.device)
         real_lengths=real_lengths.view(-1)
         thetas=self.graph_layer(fake_data)
-        for i in range(self.batch_size):
-            #image=torch.sigmoid(image)
-            v_hard=self.dp_layer(thetas[i])
-            fake_lengths[i]=v_hard
+        fake_lengths = self.dp_layer(thetas,self.adj_map,self.rev_map)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
@@ -207,11 +206,7 @@ class InvNet:
         images=torch.squeeze(images)
         real_lengths = []
         thetas=self.graph_layer(images)
-        for i in range(images.shape[0]):
-            theta=thetas[i]
-            length=self.dp_layer(theta)
-            real_lengths.append(length)
-        real_lengths=torch.stack(real_lengths)
+        real_lengths=self.dp_layer(thetas,self.adj_map,self.rev_map)
         return real_lengths.view(-1,1)
 
     def sample(self,train=True):
@@ -308,7 +303,7 @@ class InvNet:
         torch.save(self.D, self.output_path + 'discriminator.pt')
 
         val_batch=self.sample(train=False)
-        images = val_batch[0].detach()
+        images = val_batch[0].detach().to(self.device)
         real_lengths = self.real_lengths(images)
 
         noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
@@ -321,12 +316,12 @@ class InvNet:
         fake_lengths=torch.zeros((fake_data.shape[0]))
         normed_fake=normed_fake.view(-1,32,32).to(self.device)
         thetas=self.graph_layer(normed_fake)
-        for i in range(fake_data.shape[0]):
-            theta=thetas[i]
-            v_hard=self.dp_layer(theta)
-
-            fake_lengths[i]=v_hard
-
+        # for i in range(fake_data.shape[0]):
+        #     theta=thetas[i]
+        #     v_hard=self.dp_layer(theta)
+        #
+        #     fake_lengths[i]=v_hard
+        fake_lengths=self.dp_layer(thetas,self.adj_map,self.rev_map)
         diff=fake_lengths-real_lengths.squeeze()
         val_proj_err=(diff**2).mean()
 
