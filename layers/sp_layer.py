@@ -1,7 +1,3 @@
-import numpy as np
-from didyprog.didyprog.reference.shortest_path import sp_forward,sp_grad,hard_sp
-from layers.sp_utils import compute_distances
-from layers.mnist_digit import make_graph
 import torch
 from torch.autograd import Function
 
@@ -82,7 +78,3 @@ class SPLayer(Function):
                     E[:,back_idx,dir_idx]=parent
             E_hat[:,i]=total
         return E,None,None,None
-
-def hard_v(image,idx2loc,adj_map):
-    theta = compute_distances(image)
-    return hard_sp(np.array(theta),adj_map)
