@@ -1,12 +1,5 @@
 import numpy as np
 import torch
-def compute_distances(images):
-    batch_size,max_i,max_j=images.shape
-    edge_sums = torch.stack(compute_diff(images, replace=-1 * float('inf')), dim=3)
-    edge_sums_flattened=torch.flatten(edge_sums,1,2)
-    theta=edge_sums_flattened**2
-    theta[theta==float('inf')]=-1*float('inf')
-    return theta
 
 def compute_diff(image,add=True,replace=0):
     '''

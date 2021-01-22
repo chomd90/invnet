@@ -29,7 +29,7 @@ class GraphInvNet(InvNet):
         self.max_i,self.max_j=max_i,max_j
         _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
         self.dp_layer=SPLayer.apply
-        self.graph_layer=GraphLayer.apply
+        self.graph_layer=GraphLayer()
         self.start=timer()
 
 
