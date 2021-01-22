@@ -32,7 +32,6 @@ def sp_forward(theta: np.ndarray,
     V=np.zeros((n_nodes+1))
     V_hard = np.zeros((n_nodes + 1))
     Q=np.zeros((n_nodes,4))
-
     for a in [V,V_hard]:
         a[-1],a[-2]  = -1 * float('inf'),0
     for i in reversed(range(n_nodes-1)):
@@ -51,7 +50,7 @@ def sp_forward(theta: np.ndarray,
     v_hard=V_hard[0]
     return v_hard,v,Q
 
-def sp_grad(Q,rev_adj_map):
+def sp_grad(Q):
     n_nodes=Q.shape[0]
     E_hat=np.zeros((n_nodes+1))
     E = np.zeros((n_nodes, 4))

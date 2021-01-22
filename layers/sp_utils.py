@@ -61,26 +61,29 @@ def idxloc(size_j,idx):
 def locidx(size_j,idx_i,idx_j):
     return size_j*idx_i + idx_j
 
-def adjacency(idx,max_i,max_j):
-    i,j=idxloc(max_j,idx)
-    if j<max_j-1:
-        yield idx+1
-        if i<max_i-1:
-            yield idx+max_j+1
+
+def adjacency_function(max_i,max_j):
+    def adjacency(idx, replace=None):
+        i, j = idxloc(max_j, idx)
+        if j < max_j - 1:
+            yield idx + 1
+            if i < max_i - 1:
+                yield idx + max_j + 1
+            else:
+                yield replace
         else:
-            yield None
-    else:
-        yield None
-        yield None
-    if i<max_i-1:
-        yield idx+max_j
-        if j>0:
-            yield idx+max_j-1
+            yield replace
+            yield replace
+        if i < max_i - 1:
+            yield idx + max_j
+            if j > 0:
+                yield idx + max_j - 1
+            else:
+                yield replace
         else:
-            yield None
-    else:
-        yield None
-        yield None
+            yield replace
+            yield replace
+    return adjacency
 
 if __name__=='__main__':
     image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=torch.float)
