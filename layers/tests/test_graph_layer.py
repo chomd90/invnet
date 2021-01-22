@@ -2,6 +2,8 @@ from layers.graph_layer import GraphLayer
 import torch
 from scipy.optimize import check_grad
 import numpy as np
+from layers.edge_functions import sum_squared
+
 
 def make_data():
     ranged = torch.arange(2, dtype=torch.float64).view(1, 1, -1)
@@ -15,10 +17,10 @@ def make_data():
     solution = solution.view((1, 4, 4)).repeat((2, 1, 1))
     return image, solution
 
-def test_graph_layer():
+def test_graph_forward():
 
     image,solution=make_data()
-    graph_layer = GraphLayer()
+    graph_layer = GraphLayer(-float('inf'),sum_squared)
     theta = graph_layer(image)
     theta.sum().backward()
 
@@ -27,11 +29,11 @@ def test_graph_layer():
             for j in range(4):
                 assert theta[batch,i,j]==solution[batch,i,j]
 
-def test_sp_backward():
+def test_graph_backward():
     images ,_ = make_data()
 
     def grad(X):
-        graph_layer=GraphLayer()
+        graph_layer = GraphLayer(-float('inf'),sum_squared)
         X = torch.tensor(X).detach()
         X.requires_grad = True
         X = X.reshape(images.shape)
@@ -42,7 +44,7 @@ def test_sp_backward():
         return grad.detach().numpy()
 
     def func(X):
-        graph_layer = GraphLayer()
+        graph_layer = GraphLayer(-float('inf'),sum_squared)
         Y = torch.tensor(X,dtype=torch.float64).detach()
         Y = Y.reshape(images.shape)
         output = graph_layer(Y)[0,0,0]

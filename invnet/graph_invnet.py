@@ -1,22 +1,13 @@
-import math
 import torch.nn.functional as F
-import torchvision
 from torchvision import transforms, datasets
 from models.wgan import *
-from tensorboardX import SummaryWriter
 from timeit import default_timer as timer
-import os
-from utils import calc_gradient_penalty,gen_rand_noise,\
-                        weights_init,generate_image
 from layers.sp_layer import SPLayer
 from layers.graph_layer import GraphLayer
 from layers.mnist_digit import make_graph
 from config import *
-import libs as lib
-import libs.plot
-import numpy as np
 import sys
-import time
+from layers.edge_functions import sum_squared
 from invnet import InvNet
 
 class GraphInvNet(InvNet):
@@ -29,7 +20,7 @@ class GraphInvNet(InvNet):
         self.max_i,self.max_j=max_i,max_j
         _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
         self.dp_layer=SPLayer.apply
-        self.graph_layer=GraphLayer()
+        self.graph_layer=GraphLayer(null=-1*float('inf'),edge_f=sum_squared)
         self.start=timer()
 
 

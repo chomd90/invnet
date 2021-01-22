@@ -6,9 +6,6 @@ from timeit import default_timer as timer
 import os
 from utils import calc_gradient_penalty,gen_rand_noise,\
                         weights_init,generate_image
-import libs as lib
-import libs.plot
-import numpy as np
 import time
 from abc import ABC,abstractmethod
 
@@ -70,9 +67,13 @@ class InvNet(ABC):
             stats.update(add_stats)
 
             self.log(stats)
-            if iteration % 10 == 0:
-                self.save(stats)
-            lib.plot.tick()
+            if iteration % 100 == 0:
+                val_proj_err=self.save(stats)
+        self.writer.add_hparams({'proj_iters': self.proj_iters,
+                                 'critic_iters': self.critic_iters},
+                                {'projection_loss': val_proj_err,
+                                 'disc_cost': stats['disc_cost'],
+                                 'gen_cost:': stats['gen_cost']})
 
     def generator_update(self):
         start=timer()
@@ -81,10 +82,7 @@ class InvNet(ABC):
 
         real_data= self.sample()
         real_images=real_data[0].to(self.device)
-        #real_class = F.one_hot(real_data[1], num_classes=10)
         real_lengths=self.real_p1(real_images)
-        # real_class = real_class.float()
-        # real_p1 = torch.cat([real_class,real_lengths],dim=1).to(self.device)
         real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
@@ -188,8 +186,6 @@ class InvNet(ABC):
             D = self.D(imgs_v)
             _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
-        lib.plot.plot(self.output_path + 'dev_disc_cost.png', np.mean(dev_disc_costs))
-        lib.plot.flush()
         gen_images = generate_image(self.G, 4, noise=self.fixed_noise, device=self.device)
         real_images = stats['real_data'][0]
         mean = gen_images.mean()
@@ -222,11 +218,7 @@ class InvNet(ABC):
         diff = fake_lengths - real_lengths.squeeze()
         val_proj_err = (diff ** 2).mean()
 
-        self.writer.add_hparams({'proj_iters': self.proj_iters,
-                                 'critic_iters': self.critic_iters},
-                                {'projection_loss': val_proj_err,
-                                 'disc_cost': stats['disc_cost'],
-                                 'gen_cost:': stats['gen_cost']})
+        return val_proj_err
 
     def log(self,stats):
         # ------------------VISUALIZATION----------
@@ -236,10 +228,6 @@ class InvNet(ABC):
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
-        lib.plot.plot(self.output_path + 'time', time.time() - stats['start'])
-        lib.plot.plot(self.output_path + 'train_disc_cost', stats['disc_cost'].cpu().data.numpy())
-        lib.plot.plot(self.output_path + 'train_gen_cost', stats['gen_cost'].cpu().data.numpy())
-        lib.plot.plot(self.output_path + 'wasserstein_distance', stats['w_dist'].cpu().data.numpy())
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):

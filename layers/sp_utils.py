@@ -14,23 +14,24 @@ def compute_diff(image,add=True,replace=0):
     coeff=-1 if add else 1
     device=image.device
     batch_size,max_i,max_j=image.shape
-
-    zips= torch.zeros((batch_size,1,max_j),dtype=torch.float).to(device)
+    dtype=image.dtype
+    
+    zips= torch.zeros((batch_size,1,max_j),dtype=dtype).to(device)
     zips_above=torch.cat([zips,image],dim=1)
     zips_below=torch.cat([image,zips], dim=1)
     minus_below = zips_above - coeff*zips_below
     minus_below = minus_below[:,1:, :]
     minus_below[:,-1, :] = replace
 
-    zips = torch.zeros((batch_size,max_i,1),dtype=torch.float).to(device)
+    zips = torch.zeros((batch_size,max_i,1),dtype=dtype).to(device)
     right_side = torch.cat([image, zips], axis=2)
     left_side = torch.cat([zips, image], axis=2)
     minus_right = left_side - coeff*right_side
     minus_right = minus_right[:,:, 1:]
     minus_right[:,:, -1] = replace
 
-    zips = torch.zeros((batch_size,max_i,1),dtype=torch.float).to(device)
-    zips_and_across= torch.zeros((batch_size,1,max_j+1),dtype=torch.float).to(device)
+    zips = torch.zeros((batch_size,max_i,1),dtype=dtype).to(device)
+    zips_and_across= torch.zeros((batch_size,1,max_j+1),dtype=dtype).to(device)
     to_right=torch.cat([image,zips],axis=2)
     zip_se=torch.cat([to_right,zips_and_across],axis=1)
     to_left=torch.cat([zips,image],axis=2)
@@ -79,6 +80,6 @@ def adjacency_function(max_i,max_j):
     return adjacency
 
 if __name__=='__main__':
-    image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=torch.float)
+    image = torch.tensor([[1, 5, 9], [2, 6, 12], [7, 2, 1]],dtype=dtype)
     right, se, below, sw = compute_diff(image)
     print(right, se, below, sw)
