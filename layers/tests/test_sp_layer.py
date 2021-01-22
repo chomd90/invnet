@@ -57,6 +57,3 @@ def test_sp_forward():
     err=true_output-v_hard.item()
     assert err < 1e-6
 sp_layer=SPLayer.apply
-
-if __name__ == '__main__':
-    unittest.main()

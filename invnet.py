@@ -59,6 +59,7 @@ class InvNet:
 
         self.real_length_d={}#pickle.load(open('/data/kelly/length_map.pkl','rb'))
 
+        self.max_i,self.max_j=max_i,max_j
         _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
         self.dp_layer=SPLayer.apply
         self.graph_layer=GraphLayer.apply
@@ -85,8 +86,6 @@ class InvNet:
             if iteration%10==0:
                 self.save(stats)
             lib.plot.tick()
-
-
 
     def generator_update(self):
         start=timer()
@@ -165,8 +164,6 @@ class InvNet:
         return stats
 
     def proj_update(self):
-        if self.proj_iters==0:
-            return 0
         start=timer()
         real_data = self.sample()
         images = real_data[0].detach().to(self.device)
@@ -187,13 +184,10 @@ class InvNet:
         return pj_loss
 
     def proj_loss(self,fake_data,real_lengths):
-        #TODO parallelize this
         #TODO get numpy operations on gpu
 
         #TODO Try this without normalization
-        fake_data=fake_data.view((self.batch_size,32,32))
-
-        fake_lengths=torch.zeros((self.batch_size),dtype=torch.float).to(self.device)
+        fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
         real_lengths=real_lengths.view(-1)
         thetas=self.graph_layer(fake_data)
         fake_lengths = self.dp_layer(thetas,self.adj_map,self.rev_map)
@@ -201,10 +195,7 @@ class InvNet:
         return proj_loss
 
     def real_lengths(self,images):
-        #TODO Find a way to parallelize this
-        #https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html
         images=torch.squeeze(images)
-        real_lengths = []
         thetas=self.graph_layer(images)
         real_lengths=self.dp_layer(thetas,self.adj_map,self.rev_map)
         return real_lengths.view(-1,1)
@@ -303,7 +294,7 @@ class InvNet:
         torch.save(self.D, self.output_path + 'discriminator.pt')
 
         val_batch=self.sample(train=False)
-        images = val_batch[0].detach().to(self.device)
+        images = val_batch[0].detach()
         real_lengths = self.real_lengths(images)
 
         noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
@@ -313,31 +304,22 @@ class InvNet:
         fake_std = fake_data.std()
 
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
-        fake_lengths=torch.zeros((fake_data.shape[0]))
         normed_fake=normed_fake.view(-1,32,32).to(self.device)
         thetas=self.graph_layer(normed_fake)
-        # for i in range(fake_data.shape[0]):
-        #     theta=thetas[i]
-        #     v_hard=self.dp_layer(theta)
-        #
-        #     fake_lengths[i]=v_hard
         fake_lengths=self.dp_layer(thetas,self.adj_map,self.rev_map)
         diff=fake_lengths-real_lengths.squeeze()
         val_proj_err=(diff**2).mean()
 
-
-
         self.writer.add_hparams({'proj_iters': self.proj_iters,
                                  'critic_iters':self.critic_iters},
                                 {'projection_loss': val_proj_err,
-                                 'disc_cost': stats['disc_cost']})
+                                 'disc_cost': stats['disc_cost'],
+                                 'gen_cost:':stats['gen_cost']})
 
         end=timer()
         # print('--Save elapsed time:',end-start)
 
 if __name__=='__main__':
-
-
     config=InvNetConfig()
 
 
