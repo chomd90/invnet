@@ -1,2 +1,0 @@
-# didyprog
-Differentiable Dynamic Programming
