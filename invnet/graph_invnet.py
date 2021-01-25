@@ -1,44 +1,35 @@
 import torch.nn.functional as F
+import torch
 from torchvision import transforms, datasets
-from models.wgan import *
-from timeit import default_timer as timer
-from layers.sp_layer import SPLayer
-from layers.graph_layer import GraphLayer
-from layers.mnist_digit import make_graph
+from layers.DPLayer import DPLayer
 from config import *
 import sys
-from layers.edge_functions import sum_squared
-from invnet import InvNet
+from invnet import BaseInvNet
 
-class GraphInvNet(InvNet):
+class GraphInvNet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
-                 proj_iters,output_dim,hidden_size,device,lambda_gp,max_i=32,max_j=32,restore_mode=False,sp_layer=SPLayer):
-
-        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,output_dim,hidden_size,device,lambda_gp,restore_mode)
+                 proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,max_i=32,max_j=32,restore_mode=False):
 
         self.max_i,self.max_j=max_i,max_j
-        _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
-        self.dp_layer=SPLayer.apply
-        self.graph_layer=GraphLayer(null=-1*float('inf'),edge_f=sum_squared)
-        self.start=timer()
+        self.max_op=max_op
+        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j)
+        new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
+        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,restore_mode,hparams=new_hparams)
+
 
 
     def proj_loss(self,fake_data,real_lengths):
-        #TODO get numpy operations on gpu
-
-        #TODO Try this without normalization
+        #TODO Experiment with normalization
         fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
         real_lengths=real_lengths.view(-1)
-        thetas=self.graph_layer(fake_data)
-        fake_lengths = self.dp_layer(thetas,self.adj_map,self.rev_map)
+        fake_lengths=self.dp_layer(fake_data)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
     def real_p1(self,images):
         images=torch.squeeze(images)
-        thetas=self.graph_layer(images)
-        real_lengths=self.dp_layer(thetas,self.adj_map,self.rev_map)
+        real_lengths=self.dp_layer(images)
         return real_lengths.view(-1,1)
 
     def sample(self,train=True):
@@ -62,7 +53,7 @@ class GraphInvNet(InvNet):
 
     def load_data(self):
         data_transform = transforms.Compose([
-            transforms.Resize(32),
+            transforms.Resize(self.max_i),
             # transforms.CenterCrop(64),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.1307], std=[0.3801])
@@ -96,8 +87,9 @@ if __name__=='__main__':
         torch.cuda.set_device(device)
     print('training on:',device)
     sys.stdout.flush()
+
     invnet=GraphInvNet(config.batch_size,config.output_path,config.data_dir,
-                  config.lr,config.critic_iter,config.proj_iter,32*32,
-                  config.hidden_size,device,config.lambda_gp)
-    invnet.train(10000)
+                  config.lr,config.critic_iter,config.proj_iter,
+                  config.hidden_size,device,config.lambda_gp,config.edge_fn,config.max_op)
+    invnet.train(5000)
     #TODO fix proj_loss reporting

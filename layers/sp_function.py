@@ -1,7 +1,7 @@
 import torch
 from torch.autograd import Function
 
-def sm(options):
+def s_max(options):
     max_x=torch.max(options,dim=1)[0].view(-1,1)
     exp_x=torch.exp(options-max_x)
     Z=torch.sum(exp_x,dim=1).unsqueeze(-1)
@@ -9,14 +9,20 @@ def sm(options):
     probs=exp_x/Z
     return smooth_max,probs
 
+def s_min(options):
+    neg_options=-1*options
+    s_min_val,s_argmin= s_max(neg_options)
+    s_min_val*=-1
+    return s_min_val,s_argmin
 
-class SPLayer(Function):
+
+class SPFunction(Function):
 
     def __init__(self):
-        super(SPLayer,self).__init__()
+        super(SPFunction,self).__init__()
 
     @staticmethod
-    def forward(ctx,input,adj_map,rev_map):
+    def forward(ctx,input,adj_map,rev_map,max_op):
         '''
             Parameters
             ----------
@@ -31,6 +37,11 @@ class SPLayer(Function):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
+        op=s_min
+        hard_op=torch.min
+        if max_op:
+            op=s_max
+            hard_op=torch.max
         ctx.rev_map=rev_map
         thetas = input
         batch_size,n_nodes,_= thetas.shape
@@ -48,16 +59,15 @@ class SPLayer(Function):
                     idxs[dir]=n_nodes
             values=torch.stack([V[:,i] for i in idxs],dim=1)
             options=values+theta
-            soft=sm(options)
+            soft=op(options)
             V[:,i],Q[:,i,:]=soft[0],soft[1]
-            V_hard[:,i]=torch.max(options,dim=1)[0]
+            V_hard[:,i]=hard_op(options,dim=1)[0]
         v_hard=V_hard[:,0]
         ctx.save_for_backward(v_hard,Q)
         return v_hard
 
     @staticmethod
     def backward(ctx,v_grad):
-        #TODO Split this into graph creation derivative and shortest paths derivative
         '''v_grad is the gradient of the loss with respect to v_hard'''
         v_hard,Q = ctx.saved_tensors
         b,n,_=Q.shape

@@ -23,7 +23,7 @@ class InvNetConfig(argparse.Namespace):
         parser.add_argument('--lr',default=01e-04)
         parser.add_argument('--output_path', default='./output_dir', help='output directory')
         parser.add_argument('--data_dir', default='data/MNIST')
-        parser.add_argument('--gpu', default=0, help='Selecting the gpu')
+        parser.add_argument('--gpu', default=1, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=32,type=int, help='Batch size for training')
         parser.add_argument('--hidden_size', default=32, type=int,help='Hidden size used for generator and discriminator')
         parser.add_argument('--critic_iter', default=5, type=int,help='Number of iter for descriminator')
@@ -33,11 +33,11 @@ class InvNetConfig(argparse.Namespace):
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
 
-        parser.add_argument('--operator', default='max',
+        parser.add_argument('--max_op', default=True,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-        parser.add_argument('--edge_function', default='squared sum',
+        parser.add_argument('--edge_fn', default='sum_squared',
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-
+        #TODO normalization argument
         return parser
 
     def __init__(self):

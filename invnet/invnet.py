@@ -10,12 +10,12 @@ import time
 from abc import ABC,abstractmethod
 
 
-class InvNet(ABC):
+class BaseInvNet(ABC):
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp, restore_mode=False):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp, restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
-
+        #TODO Expand hyperparameter tracking
         self.device = device
 
         self.data_dir = data_dir
@@ -32,6 +32,10 @@ class InvNet(ABC):
 
         self.critic_iters = critic_iters
         self.proj_iters = proj_iters
+        hparams.update({'proj_iters': self.proj_iters,
+                      'critic_iters': self.critic_iters})
+        self.hparams=hparams
+
 
         if restore_mode:
             self.D = torch.load(output_path + "generator.pt").to(device)
@@ -69,11 +73,9 @@ class InvNet(ABC):
             self.log(stats)
             if iteration % 100 == 0:
                 val_proj_err=self.save(stats)
-        self.writer.add_hparams({'proj_iters': self.proj_iters,
-                                 'critic_iters': self.critic_iters},
-                                {'projection_loss': val_proj_err,
-                                 'disc_cost': stats['disc_cost'],
-                                 'gen_cost:': stats['gen_cost']})
+
+
+
 
     def generator_update(self):
         start=timer()
@@ -169,6 +171,7 @@ class InvNet(ABC):
         return pj_loss
 
     def save(self, stats):
+        #TODO split this into base saving actions and MNIST/DP specific saving stuff
         size = int(math.sqrt(self.output_dim))
         fake_2 = torch.argmax(stats['fake_data'].view(self.batch_size, 1, size, size), dim=1).unsqueeze(1)
         fake_2 = fake_2.int()
@@ -206,18 +209,19 @@ class InvNet(ABC):
         real_lengths = self.real_p1(images)
 
         noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
-        # specs=torch.cat([real_class,real_lengths],dim=1)
         fake_data = self.G(noise, real_lengths.to(self.device))
         fake_avg = fake_data.mean()
         fake_std = fake_data.std()
 
         normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
         normed_fake = normed_fake.view(-1, 32, 32).to(self.device)
-        thetas = self.graph_layer(normed_fake)
-        fake_lengths = self.dp_layer(thetas, self.adj_map, self.rev_map)
+        fake_lengths = self.dp_layer(normed_fake)
         diff = fake_lengths - real_lengths.squeeze()
         val_proj_err = (diff ** 2).mean()
 
+        metric_dict = {'generator_cost': stats['gen_cost'],
+                       'discriminator_cost': stats['disc_cost'], 'validation_projection_error': val_proj_err}
+        self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
         return val_proj_err
 
     def log(self,stats):
