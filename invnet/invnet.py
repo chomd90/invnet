@@ -74,9 +74,6 @@ class BaseInvNet(ABC):
             if iteration % 100 == 0:
                 val_proj_err=self.save(stats)
 
-
-
-
     def generator_update(self):
         start=timer()
         for p in self.D.parameters():
@@ -153,6 +150,7 @@ class BaseInvNet(ABC):
     def proj_update(self):
         start=timer()
         real_data = self.sample()
+        pj_loss=torch.tensor([0])
         with torch.no_grad():
             images = real_data[0].to(self.device)
             real_lengths = self.real_p1(images).view(-1, 1)

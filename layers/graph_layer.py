@@ -26,7 +26,9 @@ class GraphLayer(nn.Module):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        images = input
+        assert input.mean() <01e-05
+        images = torch.exp(input) #Make all the values positive
+
         b,max_i,max_j=images.shape
         shift_lst=[(0,1,),(1,1,),(1,0),(1,-1)]
         shifted_images=torch.stack([self.shifted(images,shifts) for shifts in shift_lst],dim=3)

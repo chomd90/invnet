@@ -23,12 +23,14 @@ class GraphInvNet(BaseInvNet):
         #TODO Experiment with normalization
         fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
         real_lengths=real_lengths.view(-1)
+
         fake_lengths=self.dp_layer(fake_data)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
     def real_p1(self,images):
         images=torch.squeeze(images)
+        images=self.norm_data(images)
         real_lengths=self.dp_layer(images)
         return real_lengths.view(-1,1)
 
