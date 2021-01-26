@@ -4,7 +4,7 @@ from models.wgan import *
 from tensorboardX import SummaryWriter
 from timeit import default_timer as timer
 import os
-from utils import calc_gradient_penalty,gen_rand_noise,\
+from utils import calc_gradient_penalty,\
                         weights_init,generate_image
 import time
 from abc import ABC,abstractmethod
@@ -70,8 +70,10 @@ class BaseInvNet(ABC):
                          'proj_cost': proj_cost}
             stats.update(add_stats)
 
+
             self.log(stats)
             if iteration % 100 == 0:
+                stats['val_proj_err'],stats['val_gen_err'],stats['val_critic_err'] = self.validation()
                 val_proj_err=self.save(stats)
 
     def generator_update(self):
@@ -179,7 +181,7 @@ class BaseInvNet(ABC):
 
         dev_disc_costs = []
         for _, images in enumerate(self.val_iter):
-            imgs = torch.Tensor(images[0])
+            imgs = torch.Tensor(images)
             imgs = imgs.to(self.device)
             with torch.no_grad():
                 imgs_v = imgs
@@ -202,25 +204,10 @@ class BaseInvNet(ABC):
         torch.save(self.G, self.output_path + 'generator.pt')
         torch.save(self.D, self.output_path + 'discriminator.pt')
 
-        val_batch = self.sample(train=False)
-        images = val_batch[0].detach().to(self.device)
-        real_lengths = self.real_p1(images)
-
-        noise = gen_rand_noise(real_lengths.shape[0]).to(self.device)
-        fake_data = self.G(noise, real_lengths.to(self.device))
-        fake_avg = fake_data.mean()
-        fake_std = fake_data.std()
-
-        normed_fake = (fake_data - fake_avg) / (fake_std / 0.8)
-        normed_fake = normed_fake.view(-1, 32, 32).to(self.device)
-        fake_lengths = self.dp_layer(normed_fake)
-        diff = fake_lengths - real_lengths.squeeze()
-        val_proj_err = (diff ** 2).mean()
 
         metric_dict = {'generator_cost': stats['gen_cost'],
-                       'discriminator_cost': stats['disc_cost'], 'validation_projection_error': val_proj_err}
+                       'discriminator_cost': stats['disc_cost'], 'validation_projection_error': stats['val_proj_err']}
         self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
-        return val_proj_err
 
     def log(self,stats):
         # ------------------VISUALIZATION----------
@@ -230,6 +217,13 @@ class BaseInvNet(ABC):
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
+
+    @abstractmethod
+    def gen_rand_noise(self,batch_size):
+        noise = torch.randn((batch_size, 128))
+        noise = noise.to(self.device)
+
+        return noise
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
@@ -251,3 +245,6 @@ class BaseInvNet(ABC):
     def norm_data(self,data):
         pass
 
+    @abstractmethod
+    def validation(self):
+        pass

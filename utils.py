@@ -49,11 +49,6 @@ def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambd
     return gradient_penalty
 
-def gen_rand_noise(batch_size):
-    noise = torch.randn((batch_size, 128))
-    noise = noise.to(device)
-
-    return noise
 
 
 def load_data(batch_size):
@@ -75,8 +70,6 @@ def load_data(batch_size):
 
 
 def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=None):
-    if noise is None:
-        noise = gen_rand_noise(batch_size)
     if conditional:
         if lv is None:
             # locationX and locationY randomly picks the centroid of the generated circles for the tensorboard.
@@ -97,11 +90,3 @@ def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=
     # samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
     # samples=samples*.3081+.1307
     return samples
-
-
-def training_data_loader():
-    return load_data(BATCH_SIZE)
-
-def val_data_loader():
-    return load_data(BATCH_SIZE)
-
