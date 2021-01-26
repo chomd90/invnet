@@ -12,7 +12,7 @@ from abc import ABC,abstractmethod
 
 class BaseInvNet(ABC):
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp, restore_mode=False,hparams={}):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp,ctrl_dim,data_dim,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
         #TODO Expand hyperparameter tracking
@@ -41,7 +41,7 @@ class BaseInvNet(ABC):
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=1).to(device)
+            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=ctrl_dim).to(device)
             self.D = GoodDiscriminator(hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
@@ -80,7 +80,7 @@ class BaseInvNet(ABC):
             p.requires_grad_(False)
 
         real_data= self.sample()
-        real_images=real_data[0].to(self.device)
+        real_images=real_data.to(self.device)
         real_lengths=self.real_p1(real_images)
         real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
@@ -91,6 +91,7 @@ class BaseInvNet(ABC):
             noise = gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad_(True)
             fake_data = self.G(noise, real_p1)
+            fake_data = self.format_data(fake_data)
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
             gen_cost = gen_cost.view((1))
@@ -109,11 +110,10 @@ class BaseInvNet(ABC):
         start = timer()
         for i in range(self.critic_iters):
             self.D.zero_grad()
-            real_data = self.sample()
+            real_images = self.sample().to(self.device)
             # gen fake data and load real data
             noise = gen_rand_noise(self.batch_size).to(self.device)
 
-            real_images = real_data[0].to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
                 real_lengths= self.real_p1(real_images)
@@ -128,7 +128,7 @@ class BaseInvNet(ABC):
             disc_fake = disc_fake.mean()
 
             # train with interpolates data
-            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp)
+            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,int(math.sqrt(self.output_dim)))
 
             # final disc cost
             disc_cost = disc_fake - disc_real + gradient_penalty
@@ -141,7 +141,7 @@ class BaseInvNet(ABC):
         stats={'w_dist': w_dist,
                'disc_cost':disc_cost,
                'fake_data':fake_data,
-               'real_data':real_data,
+               'real_data':real_images,
                'disc_real':disc_real,
                'disc_fake':disc_fake,
                'gradient_penalty':gradient_penalty}
@@ -152,13 +152,13 @@ class BaseInvNet(ABC):
         real_data = self.sample()
         pj_loss=torch.tensor([0])
         with torch.no_grad():
-            images = real_data[0].to(self.device)
-            real_lengths = self.real_p1(images).view(-1, 1)
+            images = real_data.to(self.device)
+            real_lengths = self.real_p1(images).view(self.batch_size, -1)
         for iteration in range(self.proj_iters):
             self.G.zero_grad()
             noise=gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-            fake_data = self.G(noise, real_lengths)
+            fake_data = self.G(noise, real_lengths).view((self.batch_size,64,64,6))
             normed_fake= self.norm_data(fake_data)
             pj_loss=self.proj_loss(normed_fake,real_lengths)
             pj_loss.backward()
@@ -188,7 +188,7 @@ class BaseInvNet(ABC):
             _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
         gen_images = generate_image(self.G, 4, noise=self.fixed_noise, device=self.device)
-        real_images = stats['real_data'][0]
+        real_images = stats['real_data']
         mean = gen_images.mean()
         std = gen_images.std()
         gen_images = (gen_images - mean) / (std / 0.7)
@@ -230,6 +230,9 @@ class BaseInvNet(ABC):
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
+
+    def format_data(self,data):
+        return data
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
