@@ -6,14 +6,14 @@ from layers.edge_functions import edge_f_dict
 
 class DPLayer(nn.Module):
 
-    def __init__(self,edge_fn,max_op,max_i,max_j):
+    def __init__(self,edge_fn,max_op,max_i,max_j,make_pos=True):
         super(DPLayer, self).__init__()
         self.edge_f=edge_f_dict[edge_fn]
         self.max_op=max_op
         null = float('inf')
         if self.max_op:
             null *= -1
-        self.graph_layer = GraphLayer(null=null, edge_f=self.edge_f)
+        self.graph_layer = GraphLayer(null,self.edge_f,make_pos)
         self.sp_function=SPFunction.apply
         _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
 

@@ -15,7 +15,7 @@ class GraphInvNet(BaseInvNet):
         self.max_op=max_op
         self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j)
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
-        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,restore_mode,hparams=new_hparams)
+        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,1,restore_mode,hparams=new_hparams)
 
 
 
@@ -51,7 +51,7 @@ class GraphInvNet(BaseInvNet):
                 real_data = self.val_iter.next()
             if real_data[0].shape[0]<self.batch_size:
                 real_data=self.sample(train=False)
-        return real_data
+        return real_data[0]
 
     def load_data(self):
         data_transform = transforms.Compose([

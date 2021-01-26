@@ -1,10 +1,13 @@
 import torch.nn.init as init
 import torch.nn.functional as F
-from models.wgan import *
+from models.wgan import MyConvo2d
 from torch import autograd
 from torchvision import transforms, datasets
 from config import InvNetConfig
 import random
+import torch
+import torch.nn as nn
+
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
 
@@ -26,14 +29,15 @@ def weights_init(m):
         if m.bias is not None:
             init.constant_(m.bias, 0.0)
 
-def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd):
+def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd,size):
     alpha = torch.rand(batch_size, 1)
     alpha = alpha.expand(batch_size, int(real_data.nelement() / batch_size)).contiguous()
 
-    alpha = alpha.view(batch_size, 1, DIM, DIM)
+    alpha = alpha.view(batch_size, -1)
     alpha = alpha.to(device)
 
-    fake_data = fake_data.view(batch_size, CATEGORY, DIM, DIM)
+    fake_data = fake_data.view(batch_size,-1)
+    real_data= real_data.view(batch_size,-1)
     interpolates = alpha * real_data.detach() + ((1 - alpha) * fake_data.detach())
 
     interpolates = interpolates.to(device)
@@ -56,24 +60,6 @@ def gen_rand_noise(batch_size):
     return noise
 
 
-def load_data(batch_size):
-
-
-
-    data_transform = transforms.Compose([
-        transforms.Resize(32),
-        # transforms.CenterCrop(64),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
-
-    data_dir='/Users/kellymarshall/PycharmProjects/graph_invnet/files/'
-    mnist_data=datasets.MNIST(data_dir,download=True,transform=data_transform)
-    train_loader = torch.utils.data.DataLoader(mnist_data, batch_size=batch_size, shuffle=True)
-    images,_=next(iter(train_loader))
-    return train_loader
-
-
 def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=None):
     if noise is None:
         noise = gen_rand_noise(batch_size)
@@ -93,15 +79,7 @@ def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=
         noisev = noise
         lv_v = lv
     noisev=noisev.float()
-    samples = netG(noisev, lv_v).view((batch_size,1,DIM,DIM))
+    samples = netG(noisev, lv_v).view((batch_size,1,32,32))
     # samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
     # samples=samples*.3081+.1307
     return samples
-
-
-def training_data_loader():
-    return load_data(BATCH_SIZE)
-
-def val_data_loader():
-    return load_data(BATCH_SIZE)
-

@@ -6,9 +6,10 @@ import torch.nn as nn
 
 class GraphLayer(nn.Module):
 
-    def __init__(self,null,edge_f):
+    def __init__(self,null,edge_f,make_pos):
         self.null=null
         self.edge_f=edge_f
+        self.make_positive=make_pos
         super(GraphLayer,self).__init__()
 
     def forward(self,input):
@@ -26,8 +27,9 @@ class GraphLayer(nn.Module):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        assert input.mean() <01e-05
-        images = torch.exp(input) #Make all the values positive
+        images=input
+        if self.make_positive:
+            images = torch.exp(input) #Make all the values positive
 
         b,max_i,max_j=images.shape
         shift_lst=[(0,1,),(1,1,),(1,0),(1,-1)]
