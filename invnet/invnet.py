@@ -5,8 +5,9 @@ from tensorboardX import SummaryWriter
 from timeit import default_timer as timer
 import os
 from utils import calc_gradient_penalty,\
-                        weights_init,generate_image
+                        weights_init
 import time
+import numpy as np
 from abc import ABC,abstractmethod
 
 
@@ -15,7 +16,6 @@ class BaseInvNet(ABC):
     def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp, restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
-        #TODO Expand hyperparameter tracking
         self.device = device
 
         self.data_dir = data_dir
@@ -50,7 +50,7 @@ class BaseInvNet(ABC):
         self.optim_d = torch.optim.Adam(self.D.parameters(), lr=lr, betas=(0, 0.9))
         self.optim_pj = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
 
-        self.fixed_noise = gen_rand_noise(4)
+        self.fixed_noise = self.gen_rand_noise(4)
 
         self.start = timer()
 
@@ -82,7 +82,7 @@ class BaseInvNet(ABC):
             p.requires_grad_(False)
 
         real_data= self.sample()
-        real_images=real_data[0].to(self.device)
+        real_images=real_data.to(self.device)
         real_lengths=self.real_p1(real_images)
         real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
@@ -90,7 +90,7 @@ class BaseInvNet(ABC):
 
         for i in range(1):
             self.G.zero_grad()
-            noise = gen_rand_noise(self.batch_size).to(self.device)
+            noise = self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad_(True)
             fake_data = self.G(noise, real_p1)
             gen_cost = self.D(fake_data)
@@ -113,9 +113,9 @@ class BaseInvNet(ABC):
             self.D.zero_grad()
             real_data = self.sample()
             # gen fake data and load real data
-            noise = gen_rand_noise(self.batch_size).to(self.device)
+            noise = self.gen_rand_noise(self.batch_size).to(self.device)
 
-            real_images = real_data[0].to(self.device)
+            real_images = real_data.to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
                 real_lengths= self.real_p1(real_images)
@@ -154,11 +154,11 @@ class BaseInvNet(ABC):
         real_data = self.sample()
         pj_loss=torch.tensor([0])
         with torch.no_grad():
-            images = real_data[0].to(self.device)
+            images = real_data.to(self.device)
             real_lengths = self.real_p1(images).view(-1, 1)
         for iteration in range(self.proj_iters):
             self.G.zero_grad()
-            noise=gen_rand_noise(self.batch_size).to(self.device)
+            noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
             fake_data = self.G(noise, real_lengths)
             normed_fake= self.norm_data(fake_data)
@@ -170,44 +170,30 @@ class BaseInvNet(ABC):
         # print('--projection update elapsed time:',end-start)
         return pj_loss
 
-    def save(self, stats):
-        #TODO split this into base saving actions and MNIST/DP specific saving stuff
-        size = int(math.sqrt(self.output_dim))
-        fake_2 = torch.argmax(stats['fake_data'].view(self.batch_size, 1, size, size), dim=1).unsqueeze(1)
-        fake_2 = fake_2.int()
-        fake_2 = fake_2.cpu().detach().clone()
-        fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
-        self.writer.add_image('G/images', fake_2, stats['iteration'])
-
+    def validation(self):
+        proj_errors = []
         dev_disc_costs = []
         for _, images in enumerate(self.val_iter):
+            if isinstance(images,list):
+                images=images[0]
             imgs = torch.Tensor(images)
             imgs = imgs.to(self.device)
             with torch.no_grad():
                 imgs_v = imgs
 
+            real_lengths = self.real_p1(imgs_v)
+            noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
+            fake_data = self.G(noise, real_lengths.to(self.device))
+            fake_data = self.norm_data(fake_data)
+            _proj_err = self.proj_loss(fake_data, real_lengths)
+            proj_errors.append(_proj_err)
+
             D = self.D(imgs_v)
             _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
-        gen_images = generate_image(self.G, 4, noise=self.fixed_noise, device=self.device)
-        real_images = stats['real_data'][0]
-        mean = gen_images.mean()
-        std = gen_images.std()
-        gen_images = (gen_images - mean) / (std / 0.7)
-
-        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
-        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
-        real_grid_images = real_grid_images.long()
-        fake_grid_images = fake_grid_images.long()
-        self.writer.add_image('real images', real_grid_images, stats['iteration'])
-        self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
-        torch.save(self.G, self.output_path + 'generator.pt')
-        torch.save(self.D, self.output_path + 'discriminator.pt')
-
-
-        metric_dict = {'generator_cost': stats['gen_cost'],
-                       'discriminator_cost': stats['disc_cost'], 'validation_projection_error': stats['val_proj_err']}
-        self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
+        dev_disc_cost = np.mean(dev_disc_costs)
+        proj_error = np.mean(proj_errors)
+        return proj_error, dev_disc_cost
 
     def log(self,stats):
         # ------------------VISUALIZATION----------
@@ -218,12 +204,17 @@ class BaseInvNet(ABC):
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
 
-    @abstractmethod
-    def gen_rand_noise(self,batch_size):
+    def gen_rand_noise(self,batch_size=None):
+        if batch_size is None:
+            batch_size=self.batch_size
         noise = torch.randn((batch_size, 128))
         noise = noise.to(self.device)
 
         return noise
+
+    @abstractmethod
+    def save(self, stats):
+        pass
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
@@ -245,6 +236,3 @@ class BaseInvNet(ABC):
     def norm_data(self,data):
         pass
 
-    @abstractmethod
-    def validation(self):
-        pass

@@ -1,9 +1,6 @@
-import torch
-import matplotlib.pyplot as plt
 import random
 import numpy as np
 from collections import defaultdict
-from torchvision import transforms,datasets
 
 random.seed(0)
 np.random.seed(0)
