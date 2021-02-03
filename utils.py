@@ -53,28 +53,11 @@ def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd,size):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambd
     return gradient_penalty
 
-def gen_rand_noise(batch_size):
-    noise = torch.randn((batch_size, 128))
-    noise = noise.to(device)
-
-    return noise
 
 
 def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=None):
-    if noise is None:
-        noise = gen_rand_noise(batch_size)
-    if conditional:
-        if lv is None:
-            # locationX and locationY randomly picks the centroid of the generated circles for the tensorboard.
-            # radius is calculated based on the area of the circle.
-            # using the conversion with (1/DIM)^2 * pi * r^2 = "normalized area",
-            # 'r' is based on the unit of pixel.
-            # digit=torch.randint(9,size=(batch_size,))
-            # digit=F.one_hot(digit,num_classes=10).float()
-            # lv = digit.to(device)
-            lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
-    else:
-        lv = None
+    if lv is None:
+        lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
     with torch.no_grad():
         noisev = noise
         lv_v = lv

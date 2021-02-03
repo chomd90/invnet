@@ -16,10 +16,6 @@ class InvNetConfig(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("InvNet config")
         parser.add_argument('--dataset', default='mnist', help='circle / polycrystalline')
-        parser.add_argument('--trainset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/train_toyCircle_3Ch_128.h5',
-                            help='Train dataset path')
-        parser.add_argument('--validset_path', default='/Users/kellymarshall/PycharmProjects/Invnet/datasets/circle/valid_toyCircle_3Ch_128.h5',
-                            help='Valid dataset path')
         parser.add_argument('--lr',default=01e-04)
         parser.add_argument('--output_path', default='./output_dir', help='output directory')
         parser.add_argument('--data_dir', default='data/MNIST')

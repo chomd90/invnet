@@ -174,17 +174,17 @@ class MicrostructureGenerator(nn.Module):
         self.ctrl_dim = ctrl_dim
         self.output_dim = output_dim
         self.ln1 = nn.Linear(128 + self.ctrl_dim, 4 * 4 * 8 * self.dim)
-        # self.rb0 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'up')
+        self.rb0 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'up')
         self.rb1 = ResidualBlock(8 * self.dim, 8 * self.dim, 3, resample='up')
         self.rb2 = ResidualBlock(8 * self.dim, 4 * self.dim, 3, resample='up')
         self.rb3 = ResidualBlock(4 * self.dim, 2 * self.dim, 3, resample='up')
         self.rb4 = ResidualBlock(2 * self.dim, 1 * self.dim, 3, resample='up')
-        # self.rb5 = ResidualBlock(1 * self.dim, 1 * self.dim, 3, resample='up')
+        self.rb5 = ResidualBlock(1 * self.dim, 1 * self.dim, 3, resample='up')
         self.bn = nn.BatchNorm2d(self.dim)
 
-        self.conv1 = MyConvo2d(1 * self.dim, 6, 3)  # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
+        self.conv1 = MyConvo2d(1 * self.dim, ctrl_dim, 3)  # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax2d()
+        self.softmax = nn.Sigmoid()
 
     def forward(self, input, lv):
         if lv is not None:
