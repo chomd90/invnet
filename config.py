@@ -31,7 +31,7 @@ class InvNetConfig(argparse.Namespace):
 
         parser.add_argument('--max_op', default=True,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-        parser.add_argument('--edge_fn', default='sum_squared',
+        parser.add_argument('--edge_fn', default='v1_only',
                             help='If True, it will load saved model from OUT_PATH and continue to train')
         #TODO normalization argument
         return parser

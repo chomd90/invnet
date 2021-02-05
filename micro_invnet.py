@@ -1,22 +1,21 @@
+import math
 from invnet import BaseInvNet
 import torch
 from micro_config import MicroConfig
 from microstructure_dataset import MicrostructureDataset
 from layers import DPLayer
-import torch.nn.functional as F
 import torch.nn as nn
-from models.wgan import MicrostructureGenerator,GoodDiscriminator
+import torchvision
 
+#proj ablation: /home/km3888/invnet/runs/Feb05_15-49-30_hegde-lambda-1 and the next four after
 #todo create branch from 4be7200b that's for 6-dimensional data
 class MicroInvnet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,restore_mode=False):
 
-        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,64**2,hidden_size,device,lambda_gp,6,restore_mode)
+        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,64**2,hidden_size,device,lambda_gp,1,restore_mode)
 
-        self.G=MicrostructureGenerator(32, 64*64, ctrl_dim=1).to(device)
-        self.D=GoodDiscriminator(1,32).to(device)
         self.edge_fn=edge_fn
         self.max_op=max_op
         self.DPLayer=DPLayer('v1_only',max_op,64,64,make_pos=False)
@@ -32,7 +31,7 @@ class MicroInvnet(BaseInvNet):
         p1: [b,6]
         '''
         lengths=self.DPLayer(images)
-        return lengths.view((self.batch_size,-1))
+        return lengths.view((-1,1))
 
     def sample(self,train=True):
         if train:
@@ -65,13 +64,49 @@ class MicroInvnet(BaseInvNet):
         return train_loader,test_loader
 
     def norm_data(self,data):
-        return data
+        #only get used for saving images
+        data=data.view(-1,64,64)
+        mean=data.mean(dim=0)
+        deviation=data.std(dim=0)
+        return (data-mean)/deviation
 
     def format_data(self,data):
         return data.view((self.batch_size,64,64))
 
-    def save(self):
-        pass
+    def save(self,stats):
+        # TODO split this into base saving actions and MNIST/DP specific saving stuff
+        size = int(math.sqrt(self.output_dim))
+        fake_2 = stats['fake_data'].view(self.batch_size, -1, size, size)
+        fake_2 = fake_2.int()
+        fake_2 = fake_2.cpu().detach().clone()
+        fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)#todo this isn't working
+        self.writer.add_image('G/images', fake_2, stats['iteration'])
+
+        dev_proj_err, dev_disc_cost = stats['val_proj_err'],stats['val_critic_err']
+        # Generating images for tensorboard display
+        #284 is mean
+        #std is 18.5
+        lv = torch.tensor([226.0, 284.0, 300.0, 337.0]).view(-1, 1).float().to(device)
+        with torch.no_grad():
+            noisev = self.fixed_noise
+            lv_v = lv
+        noisev = noisev.float()
+        gen_images = self.G(noisev, lv_v)
+        normed_gen_images = self.norm_data(gen_images).view((4, -1, size, size))
+        real_images =  stats['real_data']
+        normed_real_images = self.norm_data(real_images).view((4,-1,size,size))
+        real_grid_images = torchvision.utils.make_grid(normed_real_images[:4], nrow=8, padding=2)
+        fake_grid_images = torchvision.utils.make_grid(normed_gen_images, nrow=8, padding=2)
+        real_grid_images = real_grid_images.long()
+        fake_grid_images = fake_grid_images.long()
+        self.writer.add_image('real images', real_grid_images, stats['iteration'])
+        self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
+        torch.save(self.G, self.output_path + 'generator.pt')
+        torch.save(self.D, self.output_path + 'discriminator.pt')
+
+        metric_dict = {'generator_cost': stats['gen_cost'],
+                       'dev_discriminator_cost': dev_disc_cost, 'dev_validation_projection_error': dev_proj_err}
+        self.writer.add_hparams(self.hparams, metric_dict, global_step=stats['iteration'])
 
 
 if __name__=="__main__":
@@ -80,7 +115,7 @@ if __name__=="__main__":
 
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
-    device = "cuda:1"
+    device = "cuda:0"
     if cuda_available:
         torch.cuda.set_device(device)
     print('training on:', device)

@@ -1,14 +1,14 @@
-import math
-import torchvision
-from models.wgan import *
-from tensorboardX import SummaryWriter
-from timeit import default_timer as timer
 import os
-from utils import calc_gradient_penalty,\
-                        weights_init
 import time
+from abc import ABC, abstractmethod
+from timeit import default_timer as timer
+
 import numpy as np
-from abc import ABC,abstractmethod
+from tensorboardX import SummaryWriter
+
+from models.wgan import *
+from utils import calc_gradient_penalty, \
+    weights_init
 
 
 class BaseInvNet(ABC):
@@ -42,7 +42,7 @@ class BaseInvNet(ABC):
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
             self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=ctrl_dim).to(device)
-            self.D = GoodDiscriminator(hidden_size).to(device)
+            self.D = GoodDiscriminator(dim=hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
 
@@ -62,19 +62,16 @@ class BaseInvNet(ABC):
             gen_cost, real_p1 = self.generator_update()
             start_time = time.time()
             proj_cost = self.proj_update()
-            proj_time = time.time() - start_time
             stats = self.critic_update()
             add_stats = {'start': start_time,
                          'iteration': iteration,
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-
-
             self.log(stats)
-            if iteration % 100 == 0:
-                stats['val_proj_err'],stats['val_gen_err'],stats['val_critic_err'] = self.validation()
-                val_proj_err=self.save(stats)
+            if iteration % 50 == 0:
+                stats['val_proj_err'],stats['val_critic_err'] = self.validation()
+                self.save(stats)
 
     def generator_update(self):
         start=timer()
@@ -83,7 +80,8 @@ class BaseInvNet(ABC):
 
         real_data= self.sample()
         real_images=real_data.to(self.device)
-        real_lengths=self.real_p1(real_images)
+        with torch.no_grad():
+            real_lengths=self.real_p1(real_images)
         real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
@@ -141,8 +139,8 @@ class BaseInvNet(ABC):
         # print('---train D elapsed time:', end - start)
         stats={'w_dist': w_dist,
                'disc_cost':disc_cost,
-               'fake_data':fake_data,
-               'real_data':real_images,
+               'fake_data':fake_data[:100],
+               'real_data':real_images[:4],
                'disc_real':disc_real,
                'disc_fake':disc_fake,
                'gradient_penalty':gradient_penalty}
@@ -160,8 +158,7 @@ class BaseInvNet(ABC):
             noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
             fake_data = self.G(noise, real_lengths).view((self.batch_size,64,64))
-            normed_fake= self.norm_data(fake_data)
-            pj_loss=self.proj_loss(normed_fake,real_lengths)
+            pj_loss=self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
             self.optim_pj.step()
 
@@ -172,26 +169,25 @@ class BaseInvNet(ABC):
     def validation(self):
         proj_errors = []
         dev_disc_costs = []
-        for _, images in enumerate(self.val_iter):
+        for batch in range(3):
+            images=self.sample(train=False)
             if isinstance(images,list):
                 images=images[0]
             imgs = torch.Tensor(images)
-            imgs = imgs.to(self.device)
+            imgs = imgs.to(self.device).squeeze()
             with torch.no_grad():
                 imgs_v = imgs
-
-            real_lengths = self.real_p1(imgs_v)
+                real_lengths = self.real_p1(imgs_v)
             noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
-            fake_data = self.G(noise, real_lengths.to(self.device))
-            fake_data = self.norm_data(fake_data)
-            _proj_err = self.proj_loss(fake_data, real_lengths)
+            fake_data = self.G(noise, real_lengths.to(self.device)).detach()
+            _proj_err = self.proj_loss(fake_data, real_lengths).detach()
             proj_errors.append(_proj_err)
 
             D = self.D(imgs_v)
             _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
         dev_disc_cost = np.mean(dev_disc_costs)
-        proj_error = np.mean(proj_errors)
+        proj_error = sum(proj_errors)/len(proj_errors)
         return proj_error, dev_disc_cost
 
     def log(self,stats):
@@ -211,12 +207,12 @@ class BaseInvNet(ABC):
 
         return noise
 
+    def format_data(self,data):
+        return data
+
     @abstractmethod
     def save(self, stats):
         pass
-
-    def format_data(self,data):
-        return data
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
