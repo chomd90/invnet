@@ -6,9 +6,9 @@ import torch.nn.functional as F
 import torchvision
 from torchvision import transforms, datasets
 
-from config import *
+from mnist_invnet.config import *
 from invnet import BaseInvNet
-from layers.DPLayer import DPLayer
+from layers.dp_layer.DPLayer import DPLayer
 
 
 class GraphInvNet(BaseInvNet):

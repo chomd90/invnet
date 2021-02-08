@@ -1,10 +1,7 @@
 import torch.nn.init as init
-import torch.nn.functional as F
 from models.wgan import MyConvo2d
 from torch import autograd
-from torchvision import transforms, datasets
-from config import InvNetConfig
-import random
+from mnist_invnet.config import InvNetConfig
 import torch
 import torch.nn as nn
 
@@ -55,14 +52,3 @@ def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd,size):
 
 
 
-def generate_image(netG, batch_size,conditional=True,noise=None, lv=None,device=None):
-    if lv is None:
-        lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
-    with torch.no_grad():
-        noisev = noise
-        lv_v = lv
-    noisev=noisev.float()
-    samples = netG(noisev, lv_v).view((batch_size,1,32,32))
-    # samples = torch.argmax(samples.view(batch_size, CATEGORY, DIM, DIM), dim=1).unsqueeze(1)
-    # samples=samples*.3081+.1307
-    return samples

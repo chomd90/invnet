@@ -1,10 +1,7 @@
-import pytest
 import torch
-import numpy as np
-from layers.sp_function import SPLayer
+from layers.dp_layer.dp_function import SPLayer
 from layers.graph_layer import GraphLayer
-from scipy.optimize import check_grad
-from layers.make_graph import make_graph
+from layers.dp_layer.make_graph import make_graph
 
 _,_,adj_map,rev_map=make_graph(2,2)
 def make_data():

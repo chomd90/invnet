@@ -2,7 +2,7 @@ from layers.graph_layer import GraphLayer
 import torch
 from scipy.optimize import check_grad
 import numpy as np
-from layers.edge_functions import sum_squared
+from layers.dp_layer.edge_functions import sum_squared
 
 
 def make_data():

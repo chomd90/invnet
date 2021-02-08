@@ -1,25 +1,9 @@
 import torch
 from torch.autograd import Function
-
-def s_max(options):
-    max_x=torch.max(options,dim=1)[0].view(-1,1)
-    exp_x=torch.exp(options-max_x)
-    Z=torch.sum(exp_x,dim=1).unsqueeze(-1)
-    smooth_max=(torch.log(Z) + max_x).squeeze()
-    probs=exp_x/Z
-    return smooth_max,probs
-
-def s_min(options):
-    neg_options=-1*options
-    s_min_val,s_argmin= s_max(neg_options)
-    s_min_val*=-1
-    return s_min_val,s_argmin
-
-
-class SPFunction(Function):
+class DPFunction(Function):
 
     def __init__(self):
-        super(SPFunction,self).__init__()
+        super(DPFunction, self).__init__()
 
     @staticmethod
     def forward(ctx,input,adj_map,rev_map,max_op):
@@ -37,10 +21,10 @@ class SPFunction(Function):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        op=s_min
+        op=DPFunction.s_min
         hard_op=torch.min
         if max_op:
-            op=s_max
+            op=DPFunction.s_max
             hard_op=torch.max
         ctx.rev_map=rev_map
         thetas = input
@@ -54,6 +38,7 @@ class SPFunction(Function):
         for i in reversed(range(n_nodes-1)):
             theta=thetas[:,i,:]
             idxs=adj_map[i]
+            #TODO check that this handles Nonetypes correctly
             for dir,idx in enumerate(idxs):
                 if idx is None:
                     idxs[dir]=n_nodes
@@ -88,3 +73,19 @@ class SPFunction(Function):
                     E[:,back_idx,dir_idx]=parent
             E_hat[:,i]=total
         return E,None,None,None
+
+    @staticmethod
+    def s_max(options):
+        max_x = torch.max(options, dim=1)[0].view(-1, 1)
+        exp_x = torch.exp(options - max_x)
+        Z = torch.sum(exp_x, dim=1).unsqueeze(-1)
+        smooth_max = (torch.log(Z) + max_x).squeeze()
+        probs = exp_x / Z
+        return smooth_max, probs
+
+    @staticmethod
+    def s_min(options):
+        neg_options = -1 * options
+        s_min_val, s_argmin = DPFunction.s_max(neg_options)
+        s_min_val *= -1
+        return s_min_val, s_argmin

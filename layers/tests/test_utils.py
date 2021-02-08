@@ -1,4 +1,4 @@
-from layers.sp_utils import  compute_diff
+from layers.dp_layer.adjacency_utils import  compute_diff
 import torch
 
 

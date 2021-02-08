@@ -1,14 +1,14 @@
 import math
 from invnet import BaseInvNet
 import torch
-from micro_config import MicroConfig
-from microstructure_dataset import MicrostructureDataset
+from micro_invnet.config import MicroConfig
+from micro_invnet.microstructure_dataset import MicrostructureDataset
 from layers import DPLayer
 import torch.nn as nn
 import torchvision
 
 #proj ablation: /home/km3888/invnet/runs/Feb05_15-49-30_hegde-lambda-1 and the next four after
-#todo create branch from 4be7200b that's for 6-dimensional data
+#running w/ shortest paths instead of longest ; Feb06_20-55-29_hegde-lambda-1 - /Feb06_20-55-57_hegde-lambda-1
 class MicroInvnet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
@@ -86,7 +86,8 @@ class MicroInvnet(BaseInvNet):
         # Generating images for tensorboard display
         #284 is mean
         #std is 18.5
-        lv = torch.tensor([226.0, 284.0, 300.0, 337.0]).view(-1, 1).float().to(device)
+        mean,std=stats['real_p1_avg'],stats['real_p1_std']
+        lv = torch.tensor([mean-std, mean, mean+std, mean+2*std]).view(-1, 1).float().to(device)
         with torch.no_grad():
             noisev = self.fixed_noise
             lv_v = lv

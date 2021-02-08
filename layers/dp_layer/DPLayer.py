@@ -1,8 +1,9 @@
 import torch.nn as nn
+
+from layers.dp_layer.adjacency_utils import idx_adjacency
 from layers.graph_layer import GraphLayer
-from layers.sp_function import SPFunction
-from layers.make_graph import make_graph
-from layers.edge_functions import edge_f_dict
+from layers.dp_layer.dp_function import DPFunction
+from layers.dp_layer.edge_functions import edge_f_dict
 
 class DPLayer(nn.Module):
 
@@ -14,8 +15,8 @@ class DPLayer(nn.Module):
         if self.max_op:
             null *= -1
         self.graph_layer = GraphLayer(null,self.edge_f,make_pos)
-        self.sp_function=SPFunction.apply
-        _,_,self.adj_map,self.rev_map=make_graph(max_i,max_j)
+        self.sp_function=DPFunction.apply
+        self.adj_array,self.rev_adj=idx_adjacency(max_i,max_j)
 
     def forward(self,images):
         thetas = self.graph_layer(images)
