@@ -1,1 +1,1 @@
-from invnet.invnet import BaseInvNet
+from .invnet import BaseInvNet
