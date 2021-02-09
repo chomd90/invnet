@@ -7,7 +7,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 
 from models.wgan import *
-from utils import calc_gradient_penalty, \
+from invnet.invnet_utils import calc_gradient_penalty, \
     weights_init
 
 
@@ -143,7 +143,9 @@ class BaseInvNet(ABC):
                'real_data':real_images[:4],
                'disc_real':disc_real,
                'disc_fake':disc_fake,
-               'gradient_penalty':gradient_penalty}
+               'gradient_penalty':gradient_penalty,
+               'real_p1_avg':real_p1.mean(),
+                'real_p1_std':real_p1.mean()}
         return stats
 
     def proj_update(self):

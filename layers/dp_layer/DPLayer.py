@@ -11,15 +11,15 @@ class DPLayer(nn.Module):
         super(DPLayer, self).__init__()
         self.edge_f=edge_f_dict[edge_fn]
         self.max_op=max_op
-        null = float('inf')
+        self.null = float('inf')
         if self.max_op:
-            null *= -1
-        self.graph_layer = GraphLayer(null,self.edge_f,make_pos)
-        self.sp_function=DPFunction.apply
+            self.null *= -1
+        self.graph_layer = GraphLayer(self.null,self.edge_f,make_pos)
+        self.dp_function=DPFunction.apply
         self.adj_array,self.rev_adj=idx_adjacency(max_i,max_j)
 
     def forward(self,images):
         thetas = self.graph_layer(images)
-        fake_lengths = self.sp_function(thetas, self.adj_map, self.rev_map,self.max_op)
+        fake_lengths = self.dp_function(thetas, self.adj_array, self.rev_adj,self.max_op,self.null)
         return fake_lengths
 

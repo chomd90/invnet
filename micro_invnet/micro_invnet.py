@@ -1,8 +1,10 @@
 import math
+import numpy as np
+
 from invnet import BaseInvNet
 import torch
-from micro_invnet.config import MicroConfig
-from micro_invnet.microstructure_dataset import MicrostructureDataset
+from config import MicroConfig
+from microstructure_dataset import MicrostructureDataset
 from layers import DPLayer
 import torch.nn as nn
 import torchvision
@@ -19,6 +21,8 @@ class MicroInvnet(BaseInvNet):
         self.edge_fn=edge_fn
         self.max_op=max_op
         self.DPLayer=DPLayer('v1_only',max_op,64,64,make_pos=False)
+
+        self.p1_mean,self.p1_std=self.get_p1_stats()
 
     def proj_loss(self,fake_data,real_p1):
         fake_lengths=self.real_p1(fake_data)
@@ -73,6 +77,15 @@ class MicroInvnet(BaseInvNet):
     def format_data(self,data):
         return data.view((self.batch_size,64,64))
 
+    def get_p1_stats(self):
+        p1_values=[]
+        for _ in range(10):
+            batch=self.sample()
+            p1=self.DPLayer(batch)
+            p1_values+=list(p1)
+        values=np.array(p1_values)
+        return values.mean(),values.std()
+
     def save(self,stats):
         # TODO split this into base saving actions and MNIST/DP specific saving stuff
         size = int(math.sqrt(self.output_dim))
@@ -86,7 +99,7 @@ class MicroInvnet(BaseInvNet):
         # Generating images for tensorboard display
         #284 is mean
         #std is 18.5
-        mean,std=stats['real_p1_avg'],stats['real_p1_std']
+        mean,std=self.p1_mean,self.p1_std
         lv = torch.tensor([mean-std, mean, mean+std, mean+2*std]).view(-1, 1).float().to(device)
         with torch.no_grad():
             noisev = self.fixed_noise

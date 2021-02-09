@@ -28,7 +28,7 @@ class MicroConfig(argparse.Namespace):
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
 
-        parser.add_argument('--max_op', default=True,
+        parser.add_argument('--max_op', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
         parser.add_argument('--edge_fn', default='sum_squared',
                             help='If True, it will load saved model from OUT_PATH and continue to train')

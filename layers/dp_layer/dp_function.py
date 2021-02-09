@@ -6,7 +6,7 @@ class DPFunction(Function):
         super(DPFunction, self).__init__()
 
     @staticmethod
-    def forward(ctx,input,adj_map,rev_map,max_op):
+    def forward(ctx, input, adj_array, rev_adj, max_op,replace):
         '''
             Parameters
             ----------
@@ -26,7 +26,7 @@ class DPFunction(Function):
         if max_op:
             op=DPFunction.s_max
             hard_op=torch.max
-        ctx.rev_map=rev_map
+        ctx.rev_map=rev_adj
         thetas = input
         batch_size,n_nodes,_= thetas.shape
         assert n_nodes>1
@@ -37,7 +37,7 @@ class DPFunction(Function):
             a[:,-1],a[:-2]= -1*float('inf'),0
         for i in reversed(range(n_nodes-1)):
             theta=thetas[:,i,:]
-            idxs=adj_map[i]
+            idxs=adj_array[i]
             #TODO check that this handles Nonetypes correctly
             for dir,idx in enumerate(idxs):
                 if idx is None:
@@ -46,7 +46,10 @@ class DPFunction(Function):
             options=values+theta
             soft=op(options)
             V[:,i],Q[:,i,:]=soft[0],soft[1]
-            V_hard[:,i]=hard_op(options,dim=1)[0]
+            hard_values = torch.stack([V_hard[:, i] for i in idxs], dim=1)
+            hard_options=hard_values+theta
+            assert hard_options.min()>=0
+            V_hard[:,i]=hard_op(hard_options,dim=1)[0]
         v_hard=V_hard[:,0]
         ctx.save_for_backward(v_hard,Q)
         return v_hard
@@ -72,7 +75,7 @@ class DPFunction(Function):
                     total+=parent
                     E[:,back_idx,dir_idx]=parent
             E_hat[:,i]=total
-        return E,None,None,None
+        return E,None,None,None,None
 
     @staticmethod
     def s_max(options):
