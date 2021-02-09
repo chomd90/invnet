@@ -10,7 +10,7 @@ class DPFunction(Function):
         '''
             Parameters
             ----------
-            image: numpy.ndarray
+            input: numpy.ndarray
              shape nxn
             Returns
             -------
@@ -21,6 +21,8 @@ class DPFunction(Function):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
+        if not ctx.needs_input_grad[0]:
+            return DPFunction.hard_forward(input,adj_array,max_op,replace)
         op=DPFunction.s_min
         hard_op=torch.min
         if max_op:
@@ -30,8 +32,9 @@ class DPFunction(Function):
         thetas = input
         batch_size,n_nodes,_= thetas.shape
         assert n_nodes>1
-        V=torch.zeros((batch_size,n_nodes+1)).to(input.device)
         V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+
+        V=torch.zeros((batch_size,n_nodes+1)).to(input.device)
         Q=torch.zeros((batch_size,n_nodes,4)).to(input.device)
 
         if replace==0:
@@ -45,7 +48,6 @@ class DPFunction(Function):
         for i in reversed(range(n_nodes-1)):
             theta=thetas[:,i,:]
             idxs=adj_array[i]
-            #TODO check that this handles Nonetypes correctly
             for dir,idx in enumerate(idxs):
                 if idx is None:
                     idxs[dir]=n_nodes
@@ -55,7 +57,6 @@ class DPFunction(Function):
             V[:,i],Q[:,i,:]=soft[0],soft[1]
             hard_values = torch.stack([V_hard[:, i] for i in idxs], dim=1)
             hard_options=hard_values+theta
-            assert hard_options.min()>=0
             V_hard[:,i]=hard_op(hard_options,dim=1)[0]
         v_hard=V_hard[:,0]
         ctx.save_for_backward(v_hard,Q)
@@ -99,3 +100,33 @@ class DPFunction(Function):
         s_min_val, s_argmin = DPFunction.s_max(neg_options)
         s_min_val *= -1
         return s_min_val, s_argmin
+
+    @staticmethod
+    def hard_forward(input, adj_array, max_op,replace):
+        '''Computes v_hard as in forward(), but without any of the additional
+        computation needed to make function differentiable'''
+        hard_op=torch.min
+        if max_op:
+            hard_op=torch.max
+        thetas = input
+        batch_size,n_nodes,_= thetas.shape
+        assert n_nodes>1
+        V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+
+        if replace==0:
+            V_hard[:,-1]=replace
+        else:
+            V_hard[:, -1] += replace
+        V_hard[:-2]= 0
+        for i in reversed(range(n_nodes-1)):
+            theta=thetas[:,i,:]
+            idxs=adj_array[i]
+            for dir,idx in enumerate(idxs):
+                if idx is None:
+                    idxs[dir]=n_nodes
+            hard_values = torch.stack([V_hard[:, i] for i in idxs], dim=1)
+            hard_options=hard_values+theta
+            V_hard[:,i]=hard_op(hard_options,dim=1)[0]
+        v_hard=V_hard[:,0]
+
+        return v_hard
