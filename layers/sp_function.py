@@ -49,8 +49,15 @@ class SPFunction(Function):
         V=torch.zeros((batch_size,n_nodes+1)).to(input.device)
         V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
         Q=torch.zeros((batch_size,n_nodes,4)).to(input.device)
-        for a in [V,V_hard]:
-            a[:,-1],a[:-2]= -1*float('inf'),0
+
+        if replace==0:
+            V[:,-1]=replace
+            V_hard[:,-1]=replace
+        else:
+            V[:, -1] += replace
+            V_hard[:, -1] += replace
+        V[:-2] =  0
+        V_hard[:-2]= 0
         for i in reversed(range(n_nodes-1)):
             theta=thetas[:,i,:]
             idxs=adj_map[i]
