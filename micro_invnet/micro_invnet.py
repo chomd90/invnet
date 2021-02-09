@@ -11,6 +11,7 @@ import torchvision
 
 #proj ablation: /home/km3888/invnet/runs/Feb05_15-49-30_hegde-lambda-1 and the next four after
 #running w/ shortest paths instead of longest ; Feb06_20-55-29_hegde-lambda-1 - /Feb06_20-55-57_hegde-lambda-1
+#Fixed shortest paths: Feb09_11-53-16 -
 class MicroInvnet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
@@ -18,6 +19,7 @@ class MicroInvnet(BaseInvNet):
 
         super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,64**2,hidden_size,device,lambda_gp,1,restore_mode)
 
+        print(self.proj_iters)
         self.edge_fn=edge_fn
         self.max_op=max_op
         self.DPLayer=DPLayer('v1_only',max_op,64,64,make_pos=False)
@@ -100,7 +102,7 @@ class MicroInvnet(BaseInvNet):
         #284 is mean
         #std is 18.5
         mean,std=self.p1_mean,self.p1_std
-        lv = torch.tensor([mean-std, mean, mean+std, mean+2*std]).view(-1, 1).float().to(device)
+        lv = torch.tensor([mean-std, mean, mean+std, mean+2*std]).view(-1, 1).float().to(self.device)
         with torch.no_grad():
             noisev = self.fixed_noise
             lv_v = lv
@@ -122,20 +124,3 @@ class MicroInvnet(BaseInvNet):
                        'dev_discriminator_cost': dev_disc_cost, 'dev_validation_projection_error': dev_proj_err}
         self.writer.add_hparams(self.hparams, metric_dict, global_step=stats['iteration'])
 
-
-if __name__=="__main__":
-
-    config = MicroConfig()
-
-    cuda_available = torch.cuda.is_available()
-    device = torch.device(config.gpu if cuda_available else "cpu")
-    device = "cuda:0"
-    if cuda_available:
-        torch.cuda.set_device(device)
-    print('training on:', device)
-
-    invnet = MicroInvnet(config.batch_size, config.output_path, config.data_dir,
-                         config.lr, config.critic_iter, config.proj_iter,
-                         config.hidden_size, device, config.lambda_gp, config.edge_fn, config.max_op)
-    invnet.train(5000)
-    #
