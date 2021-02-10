@@ -68,9 +68,10 @@ class BaseInvNet(ABC):
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-            self.log(stats)
+            if iteration%5==0:
+                stats['val_proj_err'], stats['val_critic_err'] = self.validation()
+                self.log(stats)
             if iteration % 50 == 0:
-                stats['val_proj_err'],stats['val_critic_err'] = self.validation()
                 self.save(stats)
 
     def generator_update(self):
@@ -199,7 +200,7 @@ class BaseInvNet(ABC):
         self.writer.add_scalar('data/disc_fake', stats['disc_fake'], stats['iteration'])
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
-        self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
+        self.writer.add_scalar('data/proj_error',stats['val_proj_err'],stats['iteration'])
 
     def gen_rand_noise(self,batch_size=None):
         if batch_size is None:

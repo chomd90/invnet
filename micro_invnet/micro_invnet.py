@@ -3,7 +3,7 @@ import numpy as np
 
 from invnet import BaseInvNet
 import torch
-from .microstructure_dataset import MicrostructureDataset
+from micro_invnet import MicrostructureDataset
 from layers import DPLayer
 import torch.nn as nn
 import torchvision
