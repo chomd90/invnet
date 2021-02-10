@@ -1,6 +1,7 @@
 """ Config class for training the InvNet """
 
 import argparse
+from layers.dp_layer.edge_functions import edge_f_dict as d
 
 def get_parser(name):
     """
@@ -22,15 +23,15 @@ class MicroConfig(argparse.Namespace):
         parser.add_argument('--batch_size', default=32,type=int, help='Batch size for training')
         parser.add_argument('--hidden_size', default=32, type=int,help='Hidden size used for generator and discriminator')
         parser.add_argument('--critic_iter', default=5, type=int,help='Number of iter for descriminator')
-        parser.add_argument('--proj_iter', default=3, type=int, help='Number of iteration for projection update.')
-        parser.add_argument('--end_iter', default=100000, help='How many iterations to train for.')
+        parser.add_argument('--proj_iter', default=1, type=int, help='Number of iteration for projection update.')
+        parser.add_argument('--end_iter', default=5000, help='How many iterations to train for.')
         parser.add_argument('--lambda_gp', default=10, help='gradient penalty hyperparameter')
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
 
         parser.add_argument('--max_op', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-        parser.add_argument('--edge_fn', default='sum_squared',
+        parser.add_argument('--edge_fn', choices=list(d.keys()),default='sum_squared',
                             help='If True, it will load saved model from OUT_PATH and continue to train')
         return parser
 
