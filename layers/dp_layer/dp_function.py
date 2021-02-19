@@ -23,6 +23,9 @@ class DPFunction(Function):
             '''
         if not ctx.needs_input_grad[0]:
             return DPFunction.hard_forward(input,adj_array,max_op,replace)
+        device=input.device
+        d_type=input.dtype
+
         op=DPFunction.s_min
         hard_op=torch.min
         if max_op:
@@ -32,10 +35,10 @@ class DPFunction(Function):
         thetas = input
         batch_size,n_nodes,_= thetas.shape
         assert n_nodes>1
-        V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+        V_hard=torch.zeros((batch_size,n_nodes+1),dtype=d_type,device=device)
 
-        V=torch.zeros((batch_size,n_nodes+1)).to(input.device)
-        Q=torch.zeros((batch_size,n_nodes,4)).to(input.device)
+        V=torch.zeros((batch_size,n_nodes+1),dtype=d_type,device=device)
+        Q=torch.zeros((batch_size,n_nodes,4),dtype=d_type,device=device)
 
         if replace==0:
             V[:,-1]=replace
@@ -67,14 +70,14 @@ class DPFunction(Function):
         '''v_grad is the gradient of the loss with respect to v_hard'''
         v_hard,Q = ctx.saved_tensors
         b,n,_=Q.shape
-        E_hat=torch.zeros((b,n),dtype=torch.float,device=Q.device)
-        E = torch.zeros((b,n,4),dtype=torch.float,device=Q.device)
+        E_hat=torch.zeros((b,n),dtype=Q.dtype,device=Q.device)
+        E = torch.zeros((b,n,4),dtype=Q.dtype,device=Q.device)
 
         E[:,0,:]=Q[:,0,:]
         E_hat[:,0]=1
         for i in range(1,n):
             back_idxs=ctx.rev_map[i]
-            total=torch.zeros((b),dtype=torch.float,device=Q.device)
+            total=torch.zeros((b),dtype=Q.dtype,device=Q.device)
             for dir_idx,back_idx in enumerate(back_idxs):
                 if back_idx is not None and dir_idx <n:
                     parent=Q[:,back_idx,dir_idx]*E_hat[:,back_idx]
@@ -105,13 +108,15 @@ class DPFunction(Function):
     def hard_forward(input, adj_array, max_op,replace):
         '''Computes v_hard as in forward(), but without any of the additional
         computation needed to make function differentiable'''
+        device=input.device
+        d_type=input.dtype
         hard_op=torch.min
         if max_op:
             hard_op=torch.max
         thetas = input
         batch_size,n_nodes,_= thetas.shape
         assert n_nodes>1
-        V_hard=torch.zeros((batch_size,n_nodes+1)).to(input.device)
+        V_hard=torch.zeros((batch_size,n_nodes+1),dtype=d_type,device=device)
 
         if replace==0:
             V_hard[:,-1]=replace

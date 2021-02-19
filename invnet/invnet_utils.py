@@ -1,15 +1,8 @@
 import torch.nn.init as init
 from models.wgan import MyConvo2d
 from torch import autograd
-from mnist_invnet.config import InvNetConfig
 import torch
 import torch.nn as nn
-
-cuda_available = torch.cuda.is_available()
-device = torch.device("cuda" if cuda_available else "cpu")
-
-config=InvNetConfig()
-BATCH_SIZE=config.batch_size
 
 def weights_init(m):
     if isinstance(m, MyConvo2d):
@@ -27,6 +20,8 @@ def weights_init(m):
             init.constant_(m.bias, 0.0)
 
 def calc_gradient_penalty(netD, real_data, fake_data,batch_size,lambd,size):
+    device=real_data.device
+
     alpha = torch.rand(batch_size, 1)
     alpha = alpha.expand(batch_size, int(real_data.nelement() / batch_size)).contiguous()
 

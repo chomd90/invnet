@@ -1,5 +1,4 @@
 import torch.nn as nn
-
 from layers.dp_layer.adjacency_utils import idx_adjacency
 from layers.graph_layer import GraphLayer
 from layers.dp_layer.dp_function import DPFunction
@@ -21,5 +20,5 @@ class DPLayer(nn.Module):
     def forward(self,images):
         thetas = self.graph_layer(images)
         fake_lengths = self.dp_function(thetas, self.adj_array, self.rev_adj,self.max_op,self.null)
-        return fake_lengths
+        return fake_lengths,thetas
 

@@ -22,7 +22,7 @@ class MicroInvnet(BaseInvNet):
         print(self.proj_iters)
         self.edge_fn=edge_fn
         self.max_op=max_op
-        self.DPLayer=DPLayer('v1_only',max_op,64,64,make_pos=False)
+        self.DPLayer=DPLayer(edge_fn,max_op,64,64,make_pos=False)
 
         self.p1_mean,self.p1_std=self.get_p1_stats()
 

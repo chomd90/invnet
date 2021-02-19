@@ -18,7 +18,7 @@ class InvNetConfig(argparse.Namespace):
         parser.add_argument('--dataset', default='mnist', help='circle / polycrystalline')
         parser.add_argument('--lr',default=01e-04)
         parser.add_argument('--output_path', default='./output_dir', help='output directory')
-        parser.add_argument('--data_dir', default='data/MNIST')
+        parser.add_argument('--data_dir', default='/data/MNIST')
         parser.add_argument('--gpu', default=1, help='Selecting the gpu')
         parser.add_argument('--batch_size', default=32,type=int, help='Batch size for training')
         parser.add_argument('--hidden_size', default=32, type=int,help='Hidden size used for generator and discriminator')
