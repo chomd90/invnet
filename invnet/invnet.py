@@ -7,7 +7,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 
 from models.wgan import *
-from invnet.invnet_utils import calc_gradient_penalty, \
+from .utils import calc_gradient_penalty, \
     weights_init
 
 
@@ -51,6 +51,8 @@ class BaseInvNet(ABC):
         self.optim_pj = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
 
         self.fixed_noise = self.gen_rand_noise(4)
+
+        self.p1_mean, self.p1_std = self.get_p1_stats()
 
         self.start = timer()
 
@@ -160,7 +162,7 @@ class BaseInvNet(ABC):
             self.G.zero_grad()
             noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-            fake_data = self.G(noise, real_lengths).view((self.batch_size,64,64))
+            fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
             pj_loss=self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
             self.optim_pj.step()
@@ -207,11 +209,43 @@ class BaseInvNet(ABC):
             batch_size=self.batch_size
         noise = torch.randn((batch_size, 128))
         noise = noise.to(self.device)
-
         return noise
 
     def format_data(self,data):
         return data
+
+    def sample(self,train=True):
+        if train:
+            try:
+                real_data = next(self.dataiter)
+            except:
+                self.dataiter = iter(self.train_loader)
+                real_data = self.dataiter.next()
+            if isinstance(real_data, list):
+                real_data = real_data[0]
+
+            if real_data.shape[0] < self.batch_size:
+                real_data = self.sample()
+        else:
+            try:
+                real_data = next(self.val_iter)
+            except:
+                self.val_iter = iter(self.val_loader)
+                real_data = self.val_iter.next()
+            if isinstance(real_data, list):
+                real_data = real_data[0]
+            if real_data.shape[0] < self.batch_size:
+                real_data = self.sample(train=False)
+        return real_data.squeeze()
+
+    def get_p1_stats(self):
+        p1_values=[]
+        for _ in range(5):
+            batch=self.sample()
+            p1=self.real_p1(batch)
+            p1_values+=list(p1)
+        values=np.array(p1_values)
+        return values.mean(),values.std()
 
     @abstractmethod
     def save(self, stats):
@@ -219,10 +253,6 @@ class BaseInvNet(ABC):
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
-        pass
-
-    @abstractmethod
-    def sample(self,train):
         pass
 
     @abstractmethod

@@ -20,5 +20,5 @@ class DPLayer(nn.Module):
     def forward(self,images):
         thetas = self.graph_layer(images)
         fake_lengths = self.dp_function(thetas, self.adj_array, self.rev_adj,self.max_op,self.null)
-        return fake_lengths,thetas
+        return fake_lengths
 

@@ -1,9 +1,7 @@
 import math
-import numpy as np
-
 from invnet import BaseInvNet
 import torch
-from micro_invnet import MicrostructureDataset
+from microstructure import MicrostructureDataset
 from layers import DPLayer
 import torch.nn as nn
 import torchvision
@@ -12,7 +10,7 @@ import torchvision
 #running w/ shortest paths instead of longest ; Feb06_20-55-29_hegde-lambda-1 - /Feb06_20-55-57_hegde-lambda-1
 #Fixed shortest paths: Feb09_11-53-16 -
 #shortest paths with correct proj loss reporting: /Feb10_12-17-04-Feb10_12-18-20
-class MicroInvnet(BaseInvNet):
+class InvNet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,restore_mode=False):
@@ -23,8 +21,6 @@ class MicroInvnet(BaseInvNet):
         self.edge_fn=edge_fn
         self.max_op=max_op
         self.DPLayer=DPLayer(edge_fn,max_op,64,64,make_pos=False)
-
-        self.p1_mean,self.p1_std=self.get_p1_stats()
 
     def proj_loss(self,fake_data,real_p1):
         fake_lengths=self.real_p1(fake_data)
@@ -39,24 +35,6 @@ class MicroInvnet(BaseInvNet):
         lengths=self.DPLayer(images)
         return lengths.view((-1,1))
 
-    def sample(self,train=True):
-        if train:
-            try:
-                real_data = next(self.dataiter)
-            except:
-                self.dataiter = iter(self.train_loader)
-                real_data = self.dataiter.next()
-            if real_data.shape[0] < self.batch_size:
-                real_data = self.sample()
-        else:
-            try:
-                real_data = next(self.val_iter)
-            except:
-                self.val_iter = iter(self.val_loader)
-                real_data = self.val_iter.next()
-            if real_data.shape[0] < self.batch_size:
-                real_data = self.sample(train=False)
-        return real_data.squeeze()
 
     def load_data(self):
         train_dir = self.data_dir + 'morph_global_64_train_255.h5'
@@ -79,14 +57,6 @@ class MicroInvnet(BaseInvNet):
     def format_data(self,data):
         return data.view((self.batch_size,64,64))
 
-    def get_p1_stats(self):
-        p1_values=[]
-        for _ in range(10):
-            batch=self.sample()
-            p1=self.DPLayer(batch)
-            p1_values+=list(p1)
-        values=np.array(p1_values)
-        return values.mean(),values.std()
 
     def save(self,stats):
         # TODO split this into base saving actions and MNIST/DP specific saving stuff

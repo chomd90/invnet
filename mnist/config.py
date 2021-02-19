@@ -12,7 +12,7 @@ def get_parser(name):
     parser = argparse.ArgumentParser(name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     return parser
 
-class InvNetConfig(argparse.Namespace):
+class Config(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("InvNet config")
         parser.add_argument('--dataset', default='mnist', help='circle / polycrystalline')
@@ -29,11 +29,10 @@ class InvNetConfig(argparse.Namespace):
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
 
-        parser.add_argument('--max_op', default=False,
+        parser.add_argument('--max_op', default=True,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
         parser.add_argument('--edge_fn', default='v1_only',
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-        #TODO normalization argument
         return parser
 
     def __init__(self):

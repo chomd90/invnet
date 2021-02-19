@@ -1,7 +1,7 @@
 import torch
 from layers.dp_layer.DPLayer import DPLayer
 from scipy.optimize import check_grad,approx_fprime
-from micro_invnet import utils
+from microstructure import utils
 import numpy as np
 import pytest
 from torchvision import transforms, datasets
@@ -15,8 +15,8 @@ def make_data():
 
     train_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
     data=next(iter(train_loader))
-
     return data.squeeze(0)
+
 def make_mnist_data():
     data_transform = transforms.Compose([
         transforms.Resize(32),
