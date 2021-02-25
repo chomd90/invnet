@@ -27,15 +27,17 @@ class InvNet(BaseInvNet):
         fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
         real_lengths=real_lengths.view(-1)
 
-        fake_lengths=self.dp_layer(fake_data)
+        fake_lengths=self.real_p1(fake_data)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
     def real_p1(self,images):
         images=torch.squeeze(images)
         images=self.norm_data(images)
-        real_lengths=self.dp_layer(images)
-        return real_lengths.view(-1,1)
+        real_lengths=self.dp_layer(images).view(-1,1)
+        if self.p1_mean is not None:
+            real_lengths=self.normalize_p1(real_lengths)
+        return real_lengths
 
     def load_data(self):
         data_transform = transforms.Compose([

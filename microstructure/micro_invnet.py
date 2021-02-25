@@ -33,7 +33,9 @@ class InvNet(BaseInvNet):
         p1: [b,6]
         '''
         lengths=self.DPLayer(images)
-        return lengths.view((-1,1))
+        if self.p1_mean is not None:
+            real_lengths=self.normalize_p1(lengths)
+        return real_lengths.view((-1,1))
 
 
     def load_data(self):

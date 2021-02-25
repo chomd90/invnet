@@ -51,7 +51,7 @@ class BaseInvNet(ABC):
         self.optim_pj = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
 
         self.fixed_noise = self.gen_rand_noise(4)
-
+        self.p1_mean, self.p1_std = None,None
         self.p1_mean, self.p1_std = self.get_p1_stats()
 
         self.start = timer()
@@ -246,6 +246,9 @@ class BaseInvNet(ABC):
             p1_values+=list(p1)
         values=np.array(p1_values)
         return values.mean(),values.std()
+
+    def normalize_p1(self,p1):
+        return (p1-self.p1_mean)/self.p1_std
 
     @abstractmethod
     def save(self, stats):
