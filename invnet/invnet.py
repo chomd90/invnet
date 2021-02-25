@@ -148,13 +148,13 @@ class BaseInvNet(ABC):
                'disc_fake':disc_fake,
                'gradient_penalty':gradient_penalty,
                'real_p1_avg':real_p1.mean(),
-                'real_p1_std':real_p1.mean()}
+                'real_p1_std':real_p1.std()}
         return stats
 
     def proj_update(self):
         start=timer()
         real_data = self.sample()
-        pj_loss=torch.tensor([0])
+        total_pj_loss=torch.tensor([0.])
         with torch.no_grad():
             images = real_data.to(self.device)
             real_lengths = self.real_p1(images).view(-1, 1)
@@ -165,11 +165,12 @@ class BaseInvNet(ABC):
             fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
             pj_loss=self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
+            total_pj_loss+=pj_loss.cpu()
             self.optim_pj.step()
 
         end=timer()
         # print('--projection update elapsed time:',end-start)
-        return pj_loss
+        return total_pj_loss/self.proj_iters
 
     def validation(self):
         proj_errors = []
@@ -183,16 +184,15 @@ class BaseInvNet(ABC):
             with torch.no_grad():
                 imgs_v = imgs
                 real_lengths = self.real_p1(imgs_v)
-            noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
-            fake_data = self.G(noise, real_lengths.to(self.device)).detach()
-            _proj_err = self.proj_loss(fake_data, real_lengths).detach()
+                noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
+                fake_data = self.G(noise, real_lengths.to(self.device)).detach()
+                _proj_err = self.proj_loss(fake_data, real_lengths).detach()
+                D = self.D(imgs_v)
+                _dev_disc_cost = -D.mean().cpu().data.numpy()
             proj_errors.append(_proj_err)
-
-            D = self.D(imgs_v)
-            _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
         dev_disc_cost = np.mean(dev_disc_costs)
-        proj_error = sum(proj_errors)/len(proj_errors)
+        proj_error = sum(proj_errors)/(len(proj_errors)*self.batch_size)
         return proj_error, dev_disc_cost
 
     def log(self,stats):
@@ -240,9 +240,10 @@ class BaseInvNet(ABC):
 
     def get_p1_stats(self):
         p1_values=[]
-        for _ in range(5):
+        for _ in range(10):
             batch=self.sample()
-            p1=self.real_p1(batch)
+            with torch.no_grad():
+                p1=self.real_p1(batch)
             p1_values+=list(p1)
         values=np.array(p1_values)
         return values.mean(),values.std()
