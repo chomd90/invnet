@@ -186,8 +186,6 @@ class GoodGenerator(nn.Module):
         self.rb1 = ResidualBlock(8 * self.dim, 8 * self.dim, 3, resample='up',hw=output_dim)
         self.rb2 = ResidualBlock(8 * self.dim, 4 * self.dim, 3, resample='up',hw=output_dim)
         self.rb3 = ResidualBlock(4 * self.dim, 2 * self.dim, 3, resample='up',hw=output_dim)
-        self.rb4 = ResidualBlock(2 * self.dim, 1 * self.dim, 3, resample='up',hw=output_dim)
-        self.rb5 = ResidualBlock(1 * self.dim, 1 * self.dim, 3, resample='up',hw=output_dim)
         self.bn = nn.BatchNorm2d(2*self.dim)
 
         self.conv1 = MyConvo2d(2 * self.dim, ctrl_dim, 3)  # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
@@ -206,7 +204,6 @@ class GoodGenerator(nn.Module):
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        # output = self.rb4(output)
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
