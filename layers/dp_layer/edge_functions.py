@@ -24,4 +24,4 @@ def diff_exp(V_1,V_2):
 def v1_only(V_1,V_2):
     return torch.cat(4*[V_1],dim=3)
 
-edge_f_dict={'sum_squared':sum_squared,'diff_squared':diff_squared,'diff_exp':diff_squared,'v1_only':v1_only}
+edge_f_dict={'sum_squared':sum_squared,'diff_squared':diff_squared,'diff_exp':diff_exp,'v1_only':v1_only}
