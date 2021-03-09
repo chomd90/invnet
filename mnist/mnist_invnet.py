@@ -28,7 +28,7 @@ class InvNet(BaseInvNet):
     def proj_loss(self,fake_data,real_lengths):
         #TODO Experiment with normalization
         fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
-        real_lengths=real_lengths.view(-1)
+        real_lengths=real_lengths.view((-1,1))
 
         fake_lengths=self.real_p1(fake_data)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
