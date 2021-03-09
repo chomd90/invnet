@@ -7,7 +7,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 
 from models.wgan import *
-from .utils import calc_gradient_penalty, \
+from invnet import calc_gradient_penalty, \
     weights_init
 
 
