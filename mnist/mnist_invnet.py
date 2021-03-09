@@ -18,7 +18,10 @@ class InvNet(BaseInvNet):
 
         self.max_i,self.max_j=max_i,max_j
         self.max_op=max_op
-        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j)
+        make_pos=True
+        if edge_fn=='diff_exp':
+            make_pos=False
+        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j,make_pos=make_pos)
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
         super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,1,restore_mode,hparams=new_hparams)
 
