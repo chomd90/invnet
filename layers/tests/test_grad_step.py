@@ -1,8 +1,7 @@
 import torch
-
-from layers import DPLayer,edge_f_dict
+from layers import DPLayer
 from torchvision import transforms, datasets
-
+import pytest
 
 def make_data():
     data_transform = transforms.Compose([
@@ -15,9 +14,33 @@ def make_data():
                                 transform=data_transform)
     train_data, val_data = torch.utils.data.random_split(mnist_data, [55000, 5000])
 
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
-    images, _ = next(iter(train_loader))
-    train_loader = train_loader
-    val_loader = val_loader
-    real_p1_layer = DPLayer(edge_f_dict['diff_squared'], max_op, 32, 32, make_pos=True)
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=True)
+    image, _ = next(iter(train_loader))
+    return image.squeeze(0)
+
+@pytest.mark.parametrize('sign',[1,-1])
+def test_grad_step(sign):
+    device=torch.device('cuda')
+    p1_layer = DPLayer('diff_exp', True, 32, 32, make_pos=True)
+
+    image=make_data().to(device)
+    image.requires_grad=True
+    image.retain_grad()
+
+    real_p1=p1_layer(image)
+    loss=sign*real_p1
+    loss.backward()
+    grad=image.grad
+    assert torch.linalg.norm(grad)>0
+
+    coeff=01e-08
+    while True:
+        new_image=image-coeff*grad
+        new_loss=sign*p1_layer(new_image)
+        if new_loss.item()==loss.item():
+            coeff*=10
+        else:
+            assert new_loss<loss
+            break
+
+

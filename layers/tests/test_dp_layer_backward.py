@@ -8,7 +8,7 @@ from torchvision import transforms, datasets
 
 _epsilon = np.sqrt(np.finfo(float).eps)
 PARAMS=[('diff_squared',0),('sum_squared',0),('diff_squared',1),('sum_squared',1)]
-PARAMS=[('diff_squared',0)]
+PARAMS=[('diff_squared',1)]
 def make_data():
     dir = '/data/datasets/two_phase_morph/morph_global_64_train_255.h5'
     dataset = utils.MicrostructureDataset(dir)
@@ -82,15 +82,15 @@ def test_sp_backward(edge_fn,max_op):
     device = "cuda:0"
     torch.cuda.set_device(device)
 
-    data = make_data()
-    dp_layer=DPLayer(edge_fn,max_op,64,64,True)
+    data = make_mnist_data()
+    dp_layer=DPLayer(edge_fn,max_op,32,32,True)
     def grad(X):
         X = torch.tensor(X).detach()
 
         X = X.reshape(data.shape).type(torch.float64).to(device)
         X.requires_grad = True
         X.retain_grad()
-        p1,thetas = dp_layer(X)
+        p1 = dp_layer(X)
         output=p1.mean()
         output.backward()
         grad=X.grad.cpu()
@@ -100,7 +100,7 @@ def test_sp_backward(edge_fn,max_op):
         with torch.no_grad():
             Y = torch.tensor(X,dtype=torch.float64,device=device).detach()
             Y = Y.reshape(data.shape)
-            output,thetas = dp_layer(Y)
+            output = dp_layer(Y)
             output=output.sum().cpu()
             np.array(output,dtype=np.float64)
         return output.numpy()
