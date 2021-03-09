@@ -43,7 +43,8 @@ class GraphLayer(nn.Module):
         return shifted
 
     def replace_null(self,thetas):
-        thetas[:, :, -1, :2] = self.null
-        thetas[:, -1, :, 1:4] = self.null
-        thetas[:, :, 0, 3] = self.null
-        return thetas
+        output=thetas.clone()
+        output[:, :, -1, :2] = self.null
+        output[:, -1, :, 1:4] = self.null
+        output[:, :, 0, 3] = self.null
+        return output
