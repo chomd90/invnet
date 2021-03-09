@@ -86,7 +86,8 @@ class DPFunction(Function):
                     total+=parent
                     E[:,back_idx,dir_idx]=parent
             E_hat[:,i]=total
-        return E,None,None,None,None
+        full_grad=v_grad.view(-1,1,1)*E
+        return full_grad,None,None,None,None
 
     @staticmethod
     def s_max(options):
@@ -122,7 +123,7 @@ class DPFunction(Function):
             V_hard[:,-1]=replace
         else:
             V_hard[:, -1] += replace
-        V_hard[:-2]= 0
+        V_hard[:,-2]= 0
         for i in reversed(range(n_nodes-1)):
             theta=thetas[:,i,:]
             idxs=adj_array[i]
