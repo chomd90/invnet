@@ -24,7 +24,7 @@ class Config(argparse.Namespace):
         parser.add_argument('--hidden_size', default=32, type=int,help='Hidden size used for generator and discriminator')
         parser.add_argument('--critic_iter', default=5, type=int,help='Number of iter for descriminator')
         parser.add_argument('--proj_iter', default=3, type=int, help='Number of iteration for projection update.')
-        parser.add_argument('--end_iter', default=5000, help='How many iterations to train for.')
+        parser.add_argument('--end_iter', default=30000, help='How many iterations to train for.')
         parser.add_argument('--lambda_gp', default=10, help='gradient penalty hyperparameter')
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
