@@ -152,6 +152,8 @@ class BaseInvNet(ABC):
         return stats
 
     def proj_update(self):
+        if not self.proj_iters:
+            return 0
         start=timer()
         real_data = self.sample()
         total_pj_loss=torch.tensor([0.])
