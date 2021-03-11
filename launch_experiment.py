@@ -1,5 +1,5 @@
 #from micro_invnet import MicroConfig,MicroInvnet
-from mnist import Config, TestConfig,InvNet
+from microstructure import Config,InvNet
 import torch
 
 if __name__=="__main__":

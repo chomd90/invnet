@@ -15,12 +15,13 @@ class InvNet(BaseInvNet):
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,restore_mode=False):
 
+        self.DPLayer=DPLayer(edge_fn,max_op,64,64,make_pos=False)
+        self.max_i,self.max_j=64,64
         super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,64**2,hidden_size,device,lambda_gp,1,restore_mode)
 
         print(self.proj_iters)
         self.edge_fn=edge_fn
         self.max_op=max_op
-        self.DPLayer=DPLayer(edge_fn,max_op,64,64,make_pos=False)
 
     def proj_loss(self,fake_data,real_p1):
         fake_lengths=self.real_p1(fake_data)
@@ -34,8 +35,8 @@ class InvNet(BaseInvNet):
         '''
         lengths=self.DPLayer(images)
         if self.p1_mean is not None:
-            real_lengths=self.normalize_p1(lengths)
-        return real_lengths.view((-1,1))
+            lengths=self.normalize_p1(lengths)
+        return lengths.view((-1,1))
 
 
     def load_data(self):

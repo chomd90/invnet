@@ -1,3 +1,3 @@
 from .utils import MicrostructureDataset
-from .config import MicroConfig
+from .config import Config
 from .micro_invnet import InvNet

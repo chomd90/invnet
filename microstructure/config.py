@@ -13,7 +13,7 @@ def get_parser(name):
     parser = argparse.ArgumentParser(name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     return parser
 
-class MicroConfig(argparse.Namespace):
+class Config(argparse.Namespace):
     def build_parser(self):
         parser = get_parser("MicroConfig config")
         parser.add_argument('--lr',default=01e-04)
@@ -24,14 +24,14 @@ class MicroConfig(argparse.Namespace):
         parser.add_argument('--hidden_size', default=32, type=int,help='Hidden size used for generator and discriminator')
         parser.add_argument('--critic_iter', default=5, type=int,help='Number of iter for descriminator')
         parser.add_argument('--proj_iter', default=1, type=int, help='Number of iteration for projection update.')
-        parser.add_argument('--end_iter', default=5000, help='How many iterations to train for.')
+        parser.add_argument('--end_iter', default=20000, help='How many iterations to train for.')
         parser.add_argument('--lambda_gp', default=10, help='gradient penalty hyperparameter')
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
 
         parser.add_argument('--max_op', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-        parser.add_argument('--edge_fn', choices=list(d.keys()),default='sum_squared',
+        parser.add_argument('--edge_fn', choices=list(d.keys()),default='diff_exp',
                             help='If True, it will load saved model from OUT_PATH and continue to train')
         return parser
 
