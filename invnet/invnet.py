@@ -1,19 +1,19 @@
-import math
-import torchvision
-from models.wgan import *
-from tensorboardX import SummaryWriter
-from timeit import default_timer as timer
 import os
-from utils import calc_gradient_penalty,\
-                        weights_init
 import time
+from abc import ABC, abstractmethod
+from timeit import default_timer as timer
+
 import numpy as np
-from abc import ABC,abstractmethod
+from tensorboardX import SummaryWriter
+
+from invnet import calc_gradient_penalty, \
+    weights_init
+from models.wgan import *
 
 
 class BaseInvNet(ABC):
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp, restore_mode=False,hparams={}):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp,ctrl_dim,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
         self.device = device
@@ -41,8 +41,8 @@ class BaseInvNet(ABC):
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=1).to(device)
-            self.D = GoodDiscriminator(hidden_size).to(device)
+            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=ctrl_dim).to(device)
+            self.D = GoodDiscriminator(dim=hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
 
@@ -51,6 +51,8 @@ class BaseInvNet(ABC):
         self.optim_pj = torch.optim.Adam(self.G.parameters(), lr=lr, betas=(0, 0.9))
 
         self.fixed_noise = self.gen_rand_noise(4)
+        self.p1_mean, self.p1_std = None,None
+        self.p1_mean, self.p1_std = self.get_p1_stats()
 
         self.start = timer()
 
@@ -62,19 +64,17 @@ class BaseInvNet(ABC):
             gen_cost, real_p1 = self.generator_update()
             start_time = time.time()
             proj_cost = self.proj_update()
-            proj_time = time.time() - start_time
             stats = self.critic_update()
             add_stats = {'start': start_time,
                          'iteration': iteration,
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-
-
-            self.log(stats)
-            if iteration % 100 == 0:
-                stats['val_proj_err'],stats['val_gen_err'],stats['val_critic_err'] = self.validation()
-                val_proj_err=self.save(stats)
+            if iteration%5==0:
+                stats['val_proj_err'], stats['val_critic_err'] = self.validation()
+                self.log(stats)
+            if iteration % 50 == 0:
+                self.save(stats)
 
     def generator_update(self):
         start=timer()
@@ -83,7 +83,8 @@ class BaseInvNet(ABC):
 
         real_data= self.sample()
         real_images=real_data.to(self.device)
-        real_lengths=self.real_p1(real_images)
+        with torch.no_grad():
+            real_lengths=self.real_p1(real_images)
         real_p1=real_lengths.to(self.device)
         mone = torch.FloatTensor([1]) * -1
         mone=mone.to(self.device)
@@ -93,6 +94,7 @@ class BaseInvNet(ABC):
             noise = self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad_(True)
             fake_data = self.G(noise, real_p1)
+            fake_data = self.format_data(fake_data)
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
             gen_cost = gen_cost.view((1))
@@ -111,11 +113,9 @@ class BaseInvNet(ABC):
         start = timer()
         for i in range(self.critic_iters):
             self.D.zero_grad()
-            real_data = self.sample()
+            real_images = self.sample().to(self.device)
             # gen fake data and load real data
             noise = self.gen_rand_noise(self.batch_size).to(self.device)
-
-            real_images = real_data.to(self.device)
             with torch.no_grad():
                 noisev = noise  # totally freeze G, training D
                 real_lengths= self.real_p1(real_images)
@@ -130,7 +130,7 @@ class BaseInvNet(ABC):
             disc_fake = disc_fake.mean()
 
             # train with interpolates data
-            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp)
+            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,int(math.sqrt(self.output_dim)))
 
             # final disc cost
             disc_cost = disc_fake - disc_real + gradient_penalty
@@ -142,17 +142,21 @@ class BaseInvNet(ABC):
         # print('---train D elapsed time:', end - start)
         stats={'w_dist': w_dist,
                'disc_cost':disc_cost,
-               'fake_data':fake_data,
-               'real_data':real_data,
+               'fake_data':fake_data[:100],
+               'real_data':real_images[:4],
                'disc_real':disc_real,
                'disc_fake':disc_fake,
-               'gradient_penalty':gradient_penalty}
+               'gradient_penalty':gradient_penalty,
+               'real_p1_avg':real_p1.mean(),
+                'real_p1_std':real_p1.std()}
         return stats
 
     def proj_update(self):
+        if not self.proj_iters:
+            return 0
         start=timer()
         real_data = self.sample()
-        pj_loss=torch.tensor([0])
+        total_pj_loss=torch.tensor([0.])
         with torch.no_grad():
             images = real_data.to(self.device)
             real_lengths = self.real_p1(images).view(-1, 1)
@@ -160,39 +164,37 @@ class BaseInvNet(ABC):
             self.G.zero_grad()
             noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
-            fake_data = self.G(noise, real_lengths)
-            normed_fake= self.norm_data(fake_data)
-            pj_loss=self.proj_loss(normed_fake,real_lengths)
+            fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
+            pj_loss=self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
+            total_pj_loss+=pj_loss.cpu()
             self.optim_pj.step()
 
         end=timer()
         # print('--projection update elapsed time:',end-start)
-        return pj_loss
+        return total_pj_loss/self.proj_iters
 
     def validation(self):
         proj_errors = []
         dev_disc_costs = []
-        for _, images in enumerate(self.val_iter):
+        for batch in range(3):
+            images=self.sample(train=False)
             if isinstance(images,list):
                 images=images[0]
             imgs = torch.Tensor(images)
-            imgs = imgs.to(self.device)
+            imgs = imgs.to(self.device).squeeze()
             with torch.no_grad():
                 imgs_v = imgs
-
-            real_lengths = self.real_p1(imgs_v)
-            noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
-            fake_data = self.G(noise, real_lengths.to(self.device))
-            fake_data = self.norm_data(fake_data)
-            _proj_err = self.proj_loss(fake_data, real_lengths)
+                real_lengths = self.real_p1(imgs_v)
+                noise = self.gen_rand_noise(real_lengths.shape[0]).to(self.device)
+                fake_data = self.G(noise, real_lengths.to(self.device)).detach()
+                _proj_err = self.proj_loss(fake_data, real_lengths).detach()
+                D = self.D(imgs_v)
+                _dev_disc_cost = -D.mean().cpu().data.numpy()
             proj_errors.append(_proj_err)
-
-            D = self.D(imgs_v)
-            _dev_disc_cost = -D.mean().cpu().data.numpy()
             dev_disc_costs.append(_dev_disc_cost)
         dev_disc_cost = np.mean(dev_disc_costs)
-        proj_error = np.mean(proj_errors)
+        proj_error = sum(proj_errors)/(len(proj_errors)*self.batch_size)
         return proj_error, dev_disc_cost
 
     def log(self,stats):
@@ -202,15 +204,54 @@ class BaseInvNet(ABC):
         self.writer.add_scalar('data/disc_fake', stats['disc_fake'], stats['iteration'])
         self.writer.add_scalar('data/disc_real', stats['disc_real'], stats['iteration'])
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
-        self.writer.add_scalar('data/proj_error',stats['proj_cost'],stats['iteration'])
+        self.writer.add_scalar('data/proj_error',stats['val_proj_err'],stats['iteration'])
 
     def gen_rand_noise(self,batch_size=None):
         if batch_size is None:
             batch_size=self.batch_size
         noise = torch.randn((batch_size, 128))
         noise = noise.to(self.device)
-
         return noise
+
+    def format_data(self,data):
+        return data
+
+    def sample(self,train=True):
+        if train:
+            try:
+                real_data = next(self.dataiter)
+            except:
+                self.dataiter = iter(self.train_loader)
+                real_data = self.dataiter.next()
+            if isinstance(real_data, list):
+                real_data = real_data[0]
+
+            if real_data.shape[0] < self.batch_size:
+                real_data = self.sample()
+        else:
+            try:
+                real_data = next(self.val_iter)
+            except:
+                self.val_iter = iter(self.val_loader)
+                real_data = self.val_iter.next()
+            if isinstance(real_data, list):
+                real_data = real_data[0]
+            if real_data.shape[0] < self.batch_size:
+                real_data = self.sample(train=False)
+        return real_data.squeeze()
+
+    def get_p1_stats(self):
+        p1_values=[]
+        for _ in range(10):
+            batch=self.sample()
+            with torch.no_grad():
+                p1=self.real_p1(batch)
+            p1_values+=list(p1)
+        values=np.array(p1_values)
+        return values.mean(),values.std()
+
+    def normalize_p1(self,p1):
+        return (p1-self.p1_mean)/self.p1_std
 
     @abstractmethod
     def save(self, stats):
@@ -218,10 +259,6 @@ class BaseInvNet(ABC):
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
-        pass
-
-    @abstractmethod
-    def sample(self,train):
         pass
 
     @abstractmethod

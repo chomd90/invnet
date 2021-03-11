@@ -1,1 +1,2 @@
-from invnet.invnet import BaseInvNet
+from .invnet import BaseInvNet
+from .utils import calc_gradient_penalty, weights_init

@@ -6,55 +6,41 @@ import torch.nn.functional as F
 import torchvision
 from torchvision import transforms, datasets
 
-from config import *
 from invnet import BaseInvNet
-from layers.DPLayer import DPLayer
+from layers.dp_layer.DPLayer import DPLayer
+from mnist.config import *
 
 
-class GraphInvNet(BaseInvNet):
+class InvNet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,max_i=32,max_j=32,restore_mode=False):
 
         self.max_i,self.max_j=max_i,max_j
         self.max_op=max_op
-        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j)
+        make_pos=True
+        if edge_fn=='diff_exp':
+            make_pos=False
+        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j,make_pos=make_pos)
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
-        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,restore_mode,hparams=new_hparams)
+        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,1,restore_mode,hparams=new_hparams)
 
     def proj_loss(self,fake_data,real_lengths):
         #TODO Experiment with normalization
         fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
-        real_lengths=real_lengths.view(-1)
+        real_lengths=real_lengths.view((-1,1))
 
-        fake_lengths=self.dp_layer(fake_data)
+        fake_lengths=self.real_p1(fake_data)
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
     def real_p1(self,images):
         images=torch.squeeze(images)
         images=self.norm_data(images)
-        real_lengths=self.dp_layer(images)
-        return real_lengths.view(-1,1)
-
-    def sample(self,train=True):
-        if train:
-            try:
-                real_data = next(self.dataiter)
-            except:
-                self.dataiter = iter(self.train_loader)
-                real_data = self.dataiter.next()
-            if real_data[0].shape[0]<self.batch_size:
-                real_data=self.sample()
-        else:
-            try:
-                real_data = next(self.val_iter)
-            except:
-                self.val_iter = iter(self.val_loader)
-                real_data = self.val_iter.next()
-            if real_data[0].shape[0]<self.batch_size:
-                real_data=self.sample(train=False)
-        return real_data[0]
+        real_lengths=self.dp_layer(images).view(-1,1)
+        if self.p1_mean is not None:
+            real_lengths=self.normalize_p1(real_lengths)
+        return real_lengths
 
     def load_data(self):
         data_transform = transforms.Compose([
@@ -89,14 +75,15 @@ class GraphInvNet(BaseInvNet):
         fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
         self.writer.add_image('G/images', fake_2, stats['iteration'])
 
-        dev_proj_err, dev_disc_cost=self.validate()
+        dev_proj_err, dev_disc_cost=self.validation()
         #Generating images for tensorboard display
-        lv=torch.tensor([600,780,960,1140]).view(-1,1).float().to(device)
+        mean,std=self.p1_mean,self.p1_std
+        lv=torch.tensor([mean-std,mean,mean+std,mean+2*std]).view(-1,1).float().to(self.device)
         with torch.no_grad():
             noisev=self.fixed_noise
             lv_v=lv
         noisev=noisev.float()
-        gen_images=self.G(noisev,lv_v).view((self.batch_size,-11,size,size))
+        gen_images=self.G(noisev,lv_v).view((4,-1,size,size))
         gen_images = self.norm_data(gen_images)
         real_images = stats['real_data']
         real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
@@ -114,7 +101,7 @@ class GraphInvNet(BaseInvNet):
         self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
 
 if __name__=='__main__':
-    config=InvNetConfig()
+    config=Config()
 
 
     cuda_available = torch.cuda.is_available()
@@ -125,8 +112,8 @@ if __name__=='__main__':
     print('training on:',device)
     sys.stdout.flush()
 
-    invnet=GraphInvNet(config.batch_size,config.output_path,config.data_dir,
-                  config.lr,config.critic_iter,config.proj_iter,
-                  config.hidden_size,device,config.lambda_gp,config.edge_fn,config.max_op)
+    invnet=InvNet(config.batch_size, config.output_path, config.data_dir,
+                  config.lr, config.critic_iter, config.proj_iter,
+                  config.hidden_size, device, config.lambda_gp, config.edge_fn, config.max_op)
     invnet.train(10000)
     #TODO fix proj_loss reporting
