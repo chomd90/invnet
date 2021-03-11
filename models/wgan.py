@@ -1,3 +1,5 @@
+import math
+
 from torch import nn
 from torch.autograd import grad
 import torch
@@ -163,73 +165,77 @@ class FCGenerator(nn.Module):
         output = self.tanh(output)
         return output
 
+
 class GoodGenerator(nn.Module):
     def __init__(self, dim=DIM, output_dim=OUTPUT_DIM, ctrl_dim=0):
         super(GoodGenerator, self).__init__()
 
         self.dim = dim
-        
-        #Adding latent vectors for control knobs
+
+        # Adding latent vectors for control knobs
         self.ctrl_dim = ctrl_dim
-        self.output_dim = output_dim
-        self.ln1 = nn.Linear(128+self.ctrl_dim, 4*4*8*self.dim)
-        # self.rb0 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'up')
-        self.rb1 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'up')
-        self.rb2 = ResidualBlock(8*self.dim, 4*self.dim, 3, resample = 'up')
-        self.rb3 = ResidualBlock(4*self.dim, 2*self.dim, 3, resample = 'up')
-        self.rb4 = ResidualBlock(2*self.dim, 1*self.dim, 3, resample = 'up')
-        self.rb5 = ResidualBlock(1*self.dim, 1*self.dim, 3, resample = 'up')
-        self.bn  = nn.BatchNorm2d(2*self.dim)
+        self.output_dim = int(output_dim**(0.5))
+        if self.output_dim==32:
+            self.start_dim=4
+        elif self.output_dim==64:
+            self.start_dim=8
+        else:
+            raise Exception
+        self.ln1 = nn.Linear(128 + self.ctrl_dim, 8*4 * 4 * self.dim)
+        self.rb0=ResidualBlock(8 * self.dim, 8 * self.dim, 3, resample='up',hw=output_dim)
+        self.rb1 = ResidualBlock(8 * self.dim, 8 * self.dim, 3, resample='up',hw=output_dim)
+        self.rb2 = ResidualBlock(8 * self.dim, 4 * self.dim, 3, resample='up',hw=output_dim)
+        self.rb3 = ResidualBlock(4 * self.dim, 2 * self.dim, 3, resample='up',hw=output_dim)
+        self.bn = nn.BatchNorm2d(2*self.dim)
 
-        self.conv1 = MyConvo2d(2*self.dim, 1, 3)     # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
+        self.conv1 = MyConvo2d(2 * self.dim, ctrl_dim, 3)  # THIS NEEDS TO BE CHANGED TO NUM CATEGORY
         self.relu = nn.ReLU()
-        #self.tanh = nn.Tanh()
-        self.sigmoid = nn.Sigmoid()
-        # self.softmax = nn.Softmax2d()
+        if output_dim>1:
+            self.softmax=nn.Softmax2d()
+        self.softmax = nn.Sigmoid()
 
-    def forward(self, input,lv):
+    def forward(self, input, lv):
         if lv is not None:
             input = torch.cat([input, lv], dim=1)
         output = self.ln1(input.contiguous())
-        output = output.view(-1, 8*self.dim, 4, 4)
+        output=output.view(-1,8*self.dim,4,4)
+        if self.output_dim==64:
+            output=self.rb0(output)
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
-        # output = self.rb4(output)
-        # output = self.rb5(output)
         output = self.bn(output)
         output = self.relu(output)
         output = self.conv1(output)
-        output = self.sigmoid(output)
-        # print(output)
-        # output = self.softmax(output)
-        # print('softmax output:',output.mean())
-        output = output.view(-1, self.output_dim)
+        output = self.softmax(output)
 
-        return output
+        return output.squeeze()
+
+
 
 class GoodDiscriminator(nn.Module):
-    def __init__(self, dim=DIM):
+    def __init__(self, categories=1,dim=DIM,input_size=64):
         super(GoodDiscriminator, self).__init__()
 
         self.dim = dim
+        self.categories=categories
+        self.input_size=input_size
 
-        self.conv1 = MyConvo2d(1, self.dim, 3, he_init = False)
-        self.rb1 = ResidualBlock(self.dim, 2*self.dim, 3, resample = 'down', hw=DIM)
-        self.rb2 = ResidualBlock(2*self.dim, 4*self.dim, 3, resample = 'down', hw=int(DIM/2))
-        self.rb3 = ResidualBlock(4*self.dim, 8*self.dim, 3, resample = 'down', hw=int(DIM/4))
-        self.rb4 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'down', hw=int(DIM/8))
+        self.conv1 = MyConvo2d(categories, self.dim, 3, he_init = False)
+        self.rb1 = ResidualBlock(self.dim, 2*self.dim, 3, resample = 'down', hw=input_size)
+        self.rb2 = ResidualBlock(2*self.dim, 4*self.dim, 3, resample = 'down', hw=int(input_size/2))
+        self.rb3 = ResidualBlock(4*self.dim, 8*self.dim, 3, resample = 'down', hw=int(input_size/4))
+        self.rb4 = ResidualBlock(8*self.dim, 8*self.dim, 3, resample = 'down', hw=int(input_size/8))
         self.ln1 = nn.Linear(4*4*8*self.dim, 1)
 
     def forward(self, input):
         output = input.contiguous()
-        output = output.view(-1,1, DIM, DIM)
+        output = output.view(-1,self.categories, self.input_size, self.input_size)
         output = self.conv1(output)
         output = self.rb1(output)
         output = self.rb2(output)
         output = self.rb3(output)
         # output = self.rb4(output)
-        # print('input 4:',output.shape)
         output = output.view(-1, 4*4*8*self.dim)
         output = self.ln1(output)
         output = output.view(-1)

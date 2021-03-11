@@ -1,14 +1,13 @@
-from layers.sp_utils import compute_diff
 import torch
-from torch.autograd import Function
 import torch.nn as nn
 
 
 class GraphLayer(nn.Module):
 
-    def __init__(self,null,edge_f):
+    def __init__(self,null,edge_f,make_pos):
         self.null=null
         self.edge_f=edge_f
+        self.make_positive=make_pos
         super(GraphLayer,self).__init__()
 
     def forward(self,input):
@@ -26,7 +25,10 @@ class GraphLayer(nn.Module):
             true_shortest_path: int
              Shortest path value computed by hard-DP
             '''
-        images = input
+        images=input
+        if self.make_positive:
+            images = torch.exp(input) #Make all the values positive
+
         b,max_i,max_j=images.shape
         shift_lst=[(0,1,),(1,1,),(1,0),(1,-1)]
         shifted_images=torch.stack([self.shifted(images,shifts) for shifts in shift_lst],dim=3)
@@ -41,7 +43,8 @@ class GraphLayer(nn.Module):
         return shifted
 
     def replace_null(self,thetas):
-        thetas[:, :, -1, :2] = self.null
-        thetas[:, -1, :, 1:4] = self.null
-        thetas[:, :, 0, 3] = self.null
-        return thetas
+        output=thetas.clone()
+        output[:, :, -1, :2] = self.null
+        output[:, -1, :, 1:4] = self.null
+        output[:, :, 0, 3] = self.null
+        return output
