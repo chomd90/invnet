@@ -16,7 +16,7 @@ from models.wgan import *
 
 class BaseInvNet(ABC):
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp,ctrl_dim,restore_mode=False,hparams={}):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j, hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
         self.device = device
@@ -27,7 +27,8 @@ class BaseInvNet(ABC):
             os.makedirs(output_path)
 
         self.batch_size = batch_size
-        self.output_dim = output_dim
+        self.max_i = max_i
+        self.max_j = max_j
         self.lambda_gp = lambda_gp
 
         self.train_loader, self.val_loader = self.load_data()
@@ -39,6 +40,7 @@ class BaseInvNet(ABC):
                       'critic_iters': self.critic_iters})
         self.hparams=hparams
 
+        self.dp_layer = DPLayer(edge_fn, max_op, self.max_i,self.max_j , make_pos=make_pos)
 
         if restore_mode:
             self.D = torch.load(output_path + "generator.pt").to(device)
@@ -62,7 +64,6 @@ class BaseInvNet(ABC):
     def train(self, iters):
 
         for iteration in range(iters):
-            print('iteration:', iteration)
 
             gen_cost, real_p1 = self.generator_update()
             start_time = time.time()
@@ -78,6 +79,7 @@ class BaseInvNet(ABC):
                 self.log(stats)
             if iteration % 50 == 0:
                 self.save(stats)
+                print('iteration:', iteration)
 
     def generator_update(self):
         start=timer()

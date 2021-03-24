@@ -13,14 +13,12 @@ class InvNet(BaseInvNet):
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
                  proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,restore_mode=False):
 
-        self.max_i,self.max_j=max_i,max_j
         self.max_op=max_op
         make_pos=True
         if edge_fn=='diff_exp':
             make_pos=False
-        self.dp_layer=DPLayer(edge_fn,max_op,max_i,max_j,make_pos=make_pos)
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
-        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,max_i*max_j,hidden_size,device,lambda_gp,1,restore_mode,hparams=new_hparams)
+        super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,32,32,hidden_size,device,lambda_gp,1,restore_mode,edge_fn,max_op,make_pos,hparams=new_hparams)
 
     def proj_loss(self,fake_data,real_lengths):
         #TODO Experiment with normalization
@@ -54,7 +52,6 @@ class InvNet(BaseInvNet):
 
         train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
         val_loader=torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
-        images, _ = next(iter(train_loader))
         return train_loader,val_loader
 
     def norm_data(self,data):
