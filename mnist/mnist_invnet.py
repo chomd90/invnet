@@ -1,20 +1,17 @@
-import math
 import sys
 
 import torch
 import torch.nn.functional as F
-import torchvision
 from torchvision import transforms, datasets
 
 from invnet import BaseInvNet
-from layers.dp_layer.DPLayer import DPLayer
 from mnist.config import *
 
 
 class InvNet(BaseInvNet):
 
     def __init__(self,batch_size,output_path,data_dir,lr,critic_iters,\
-                 proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,max_i=32,max_j=32,restore_mode=False):
+                 proj_iters,hidden_size,device,lambda_gp,edge_fn,max_op,restore_mode=False):
 
         self.max_i,self.max_j=max_i,max_j
         self.max_op=max_op
@@ -66,39 +63,6 @@ class InvNet(BaseInvNet):
         normed = (data - avg) / (std / 0.8)
         return normed
 
-    def save(self,stats):
-        #TODO split this into base saving actions and MNIST/DP specific saving stuff
-        size = int(math.sqrt(self.output_dim))
-        fake_2 = stats['fake_data'].view(self.batch_size, -1, size, size)
-        fake_2 = fake_2.int()
-        fake_2 = fake_2.cpu().detach().clone()
-        fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
-        self.writer.add_image('G/images', fake_2, stats['iteration'])
-
-        dev_proj_err, dev_disc_cost=self.validation()
-        #Generating images for tensorboard display
-        mean,std=self.p1_mean,self.p1_std
-        lv=torch.tensor([mean-std,mean,mean+std,mean+2*std]).view(-1,1).float().to(self.device)
-        with torch.no_grad():
-            noisev=self.fixed_noise
-            lv_v=lv
-        noisev=noisev.float()
-        gen_images=self.G(noisev,lv_v).view((4,-1,size,size))
-        gen_images = self.norm_data(gen_images)
-        real_images = stats['real_data']
-        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
-        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
-        real_grid_images = real_grid_images.long()
-        fake_grid_images = fake_grid_images.long()
-        self.writer.add_image('real images', real_grid_images, stats['iteration'])
-        self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
-        torch.save(self.G, self.output_path + 'generator.pt')
-        torch.save(self.D, self.output_path + 'discriminator.pt')
-
-
-        metric_dict = {'generator_cost': stats['gen_cost'],
-                       'discriminator_cost': dev_disc_cost ,'validation_projection_error': dev_proj_err}
-        self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
 
 if __name__=='__main__':
     config=Config()

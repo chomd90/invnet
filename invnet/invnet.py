@@ -1,13 +1,16 @@
+import math
 import os
 import time
 from abc import ABC, abstractmethod
 from timeit import default_timer as timer
 
 import numpy as np
+import torchvision
 from tensorboardX import SummaryWriter
 
 from invnet import calc_gradient_penalty, \
     weights_init
+from layers import DPLayer
 from models.wgan import *
 
 
@@ -253,9 +256,40 @@ class BaseInvNet(ABC):
     def normalize_p1(self,p1):
         return (p1-self.p1_mean)/self.p1_std
 
-    @abstractmethod
-    def save(self, stats):
-        pass
+    def save(self,stats):
+        #TODO split this into base saving actions and MNIST/DP specific saving stuff
+        size = int(math.sqrt(self.output_dim))
+        fake_2 = stats['fake_data'].view(self.batch_size, -1, size, size)
+        fake_2 = fake_2.int()
+        fake_2 = fake_2.cpu().detach().clone()
+        fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
+        self.writer.add_image('G/images', fake_2, stats['iteration'])
+
+        dev_proj_err, dev_disc_cost=self.validation()
+        #Generating images for tensorboard display
+        mean,std=self.p1_mean,self.p1_std
+        lv=torch.tensor([mean-std,mean,mean+std,mean+2*std]).view(-1,1).float().to(self.device)
+        with torch.no_grad():
+            noisev=self.fixed_noise
+            lv_v=lv
+        noisev=noisev.float()
+        gen_images=self.G(noisev,lv_v).view((4,-1,size,size))
+        gen_images = self.norm_data(gen_images)
+        real_images = stats['real_data']
+        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
+        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
+        real_grid_images = real_grid_images.long()
+        fake_grid_images = fake_grid_images.long()
+        self.writer.add_image('real images', real_grid_images, stats['iteration'])
+        self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
+        torch.save(self.G, self.output_path + 'generator.pt')
+        torch.save(self.D, self.output_path + 'discriminator.pt')
+
+
+        metric_dict = {'generator_cost': stats['gen_cost'],
+                       'discriminator_cost': dev_disc_cost ,'validation_projection_error': dev_proj_err}
+        self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
+
 
     @abstractmethod
     def proj_loss(self,fake_data,real_p1):
