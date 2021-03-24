@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 
 from invnet import BaseInvNet
 from microstructure import MicrostructureDataset
@@ -21,10 +20,6 @@ class InvNet(BaseInvNet):
         self.edge_fn=edge_fn
         self.max_op=max_op
 
-    def proj_loss(self,fake_data,real_p1):
-        fake_lengths=self.real_p1(fake_data)
-        loss_f=nn.MSELoss()
-        return loss_f(fake_lengths,real_p1)
 
     def real_p1(self,images):
         '''

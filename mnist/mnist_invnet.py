@@ -1,7 +1,6 @@
 import sys
 
 import torch
-import torch.nn.functional as F
 from torchvision import transforms, datasets
 
 from invnet import BaseInvNet
@@ -20,14 +19,7 @@ class InvNet(BaseInvNet):
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
         super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,32,32,hidden_size,device,lambda_gp,1,restore_mode,edge_fn,max_op,make_pos,hparams=new_hparams)
 
-    def proj_loss(self,fake_data,real_lengths):
-        #TODO Experiment with normalization
-        fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
-        real_lengths=real_lengths.view((-1,1))
 
-        fake_lengths=self.real_p1(fake_data)
-        proj_loss=F.mse_loss(fake_lengths,real_lengths)
-        return proj_loss
 
     def real_p1(self,images):
         images=torch.squeeze(images)

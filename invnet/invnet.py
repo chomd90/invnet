@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from timeit import default_timer as timer
 
 import numpy as np
+import torch.nn.functional as F
 import torchvision
 from tensorboardX import SummaryWriter
 
@@ -292,10 +293,15 @@ class BaseInvNet(ABC):
                        'discriminator_cost': dev_disc_cost ,'validation_projection_error': dev_proj_err}
         self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
 
+    #TODO check that this loss F.mse_loss is giving expected output
+    def proj_loss(self,fake_data,real_lengths):
+        #TODO Experiment with normalization
+        fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
+        real_lengths=real_lengths.view((-1,1))
 
-    @abstractmethod
-    def proj_loss(self,fake_data,real_p1):
-        pass
+        fake_lengths=self.real_p1(fake_data)
+        proj_loss=F.mse_loss(fake_lengths,real_lengths)
+        return proj_loss
 
     @abstractmethod
     def real_p1(self,images):
