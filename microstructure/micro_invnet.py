@@ -1,7 +1,4 @@
-import torch
-
 from invnet import BaseInvNet
-from microstructure import MicrostructureDataset
 
 
 #proj ablation: /home/km3888/invnet/runs/Feb05_15-49-30_hegde-lambda-1 and the next four after
@@ -31,17 +28,6 @@ class InvNet(BaseInvNet):
             lengths=self.normalize_p1(lengths)
         return lengths.view((-1,1))
 
-
-    def load_data(self):
-        train_dir = self.data_dir + 'morph_global_64_train_255.h5'
-        test_dir = self.data_dir + 'morph_global_64_valid_255.h5'
-        #Returns train_loader and val_loader, both of pytorch DataLoader type
-        train_data=MicrostructureDataset(train_dir)
-        test_data=MicrostructureDataset(test_dir)
-
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
-        test_loader = torch.utils.data.DataLoader(test_data, batch_size=self.batch_size, shuffle=True)
-        return train_loader,test_loader
 
     def norm_data(self,data):
         #only get used for saving images

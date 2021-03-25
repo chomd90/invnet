@@ -8,10 +8,12 @@ import numpy as np
 import torch.nn.functional as F
 import torchvision
 from tensorboardX import SummaryWriter
+from torchvision import transforms, datasets
 
 from invnet import calc_gradient_penalty, \
     weights_init
 from layers import DPLayer
+from microstructure import MicrostructureDataset
 from models.wgan import *
 
 
@@ -303,13 +305,36 @@ class BaseInvNet(ABC):
         proj_loss=F.mse_loss(fake_lengths,real_lengths)
         return proj_loss
 
+    def load_data(self):
+        if 'morph' in self.data_dir:
+            train_dir = self.data_dir + 'morph_global_64_train_255.h5'
+            test_dir = self.data_dir + 'morph_global_64_valid_255.h5'
+            # Returns train_loader and val_loader, both of pytorch DataLoader type
+            train_data = MicrostructureDataset(train_dir)
+            val_data = MicrostructureDataset(test_dir)
+        elif 'mnist' in self.data_dir:
+            data_transform = transforms.Compose([
+                transforms.Resize(self.max_i),
+                # transforms.CenterCrop(64),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.1307], std=[0.3801])
+            ])
+            data_dir = self.data_dir
+            print('data_dir:', data_dir)
+            mnist_data = datasets.MNIST(data_dir, download=True,
+                                        transform=data_transform)
+            train_data, val_data = torch.utils.data.random_split(mnist_data, [55000, 5000])
+        else:
+            raise Exception('Unknown Dataset')
+        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
+        return train_loader,test_loader
+
+
     @abstractmethod
     def real_p1(self,images):
         pass
 
-    @abstractmethod
-    def load_data(self):
-        pass
 
     @abstractmethod
     def norm_data(self,data):

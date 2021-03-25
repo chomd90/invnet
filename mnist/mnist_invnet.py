@@ -1,7 +1,6 @@
 import sys
 
 import torch
-from torchvision import transforms, datasets
 
 from invnet import BaseInvNet
 from mnist.config import *
@@ -19,8 +18,6 @@ class InvNet(BaseInvNet):
         new_hparams = {'max_op': str(max_op), 'edge_fn': edge_fn}
         super().__init__(batch_size,output_path,data_dir,lr,critic_iters,proj_iters,32,32,hidden_size,device,lambda_gp,1,restore_mode,edge_fn,max_op,make_pos,hparams=new_hparams)
 
-
-
     def real_p1(self,images):
         images=torch.squeeze(images)
         images=self.norm_data(images)
@@ -28,23 +25,6 @@ class InvNet(BaseInvNet):
         if self.p1_mean is not None:
             real_lengths=self.normalize_p1(real_lengths)
         return real_lengths
-
-    def load_data(self):
-        data_transform = transforms.Compose([
-            transforms.Resize(self.max_i),
-            # transforms.CenterCrop(64),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.1307], std=[0.3801])
-        ])
-        data_dir = self.data_dir
-        print('data_dir:',data_dir)
-        mnist_data = datasets.MNIST(data_dir, download=True,
-                                    transform=data_transform)
-        train_data,val_data=torch.utils.data.random_split(mnist_data, [55000,5000])
-
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
-        val_loader=torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
-        return train_loader,val_loader
 
     def norm_data(self,data):
         avg = data.mean()
