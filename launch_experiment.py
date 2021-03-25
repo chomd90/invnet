@@ -2,7 +2,7 @@
 import torch
 
 from config import MNISTConfig as Config
-from graph_invnet import GraphInvNet
+from invnet import GraphInvNet
 
 if __name__=="__main__":
     config = Config()

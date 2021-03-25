@@ -9,9 +9,9 @@ import torchvision
 from tensorboardX import SummaryWriter
 from torchvision import transforms, datasets
 
-from graph_invnet.utils import calc_gradient_penalty, \
+from dp_layer import DPLayer
+from invnet.utils import calc_gradient_penalty, \
     weights_init, MicrostructureDataset
-from layers import DPLayer
 from models.wgan import *
 
 
