@@ -1,9 +1,9 @@
 import torch.nn as nn
 
-from layers.dp_layer.adjacency_utils import idx_adjacency
 from layers.dp_layer.dp_function import DPFunction
-from layers.dp_layer.edge_functions import edge_f_dict
 from layers.graph_layer import GraphLayer
+from layers.graph_layer.adjacency_utils import idx_adjacency
+from layers.graph_layer.edge_functions import edge_f_dict
 
 
 class DPLayer(nn.Module):

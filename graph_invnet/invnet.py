@@ -1,7 +1,6 @@
 import math
 import os
 import time
-from abc import ABC, abstractmethod
 from timeit import default_timer as timer
 
 import numpy as np
@@ -10,14 +9,13 @@ import torchvision
 from tensorboardX import SummaryWriter
 from torchvision import transforms, datasets
 
-from invnet import calc_gradient_penalty, \
-    weights_init
+from graph_invnet.utils import calc_gradient_penalty, \
+    weights_init, MicrostructureDataset
 from layers import DPLayer
-from microstructure import MicrostructureDataset
 from models.wgan import *
 
 
-class BaseInvNet(ABC):
+class GraphInvNet:
 
     def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j, hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
@@ -101,8 +99,7 @@ class BaseInvNet(ABC):
             self.G.zero_grad()
             noise = self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad_(True)
-            fake_data = self.G(noise, real_p1)
-            fake_data = self.format_data(fake_data)
+            fake_data = self.G(noise, real_p1).view((-1,self.max_i,self.max_j))
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
             gen_cost = gen_cost.view((1))
@@ -221,8 +218,6 @@ class BaseInvNet(ABC):
         noise = noise.to(self.device)
         return noise
 
-    def format_data(self,data):
-        return data
 
     def sample(self,train=True):
         if train:
@@ -330,13 +325,21 @@ class BaseInvNet(ABC):
         test_loader = torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
         return train_loader,test_loader
 
-
-    @abstractmethod
     def real_p1(self,images):
-        pass
+        images=images.view((-1,self.max_i,self.max_j))
+        images=self.norm_data(images)
+        real_lengths=self.dp_layer(images).view(-1,1)
+        if self.p1_mean is not None:
+            real_lengths=self.normalize_p1(real_lengths)
+        return real_lengths
 
-
-    @abstractmethod
-    def norm_data(self,data):
-        pass
-
+    def norm_data(self, data):
+        #only used for saving
+        data = data.view(-1, self.max_i, self.max_j)
+        if 'mnist' in self.data_dir:
+            mean = data.mean(dim=0)
+            deviation = data.std(dim=0)
+            return (data - mean) / (deviation/0.8)
+        elif 'morph' in self.data_dir:
+            data=torch.round(data)
+            return data

@@ -1,7 +1,8 @@
 #from micro_invnet import MicroConfig,MicroInvnet
 import torch
 
-from microstructure import Config, InvNet
+from config import MNISTConfig as Config
+from graph_invnet import GraphInvNet
 
 if __name__=="__main__":
     config = Config()
@@ -13,7 +14,8 @@ if __name__=="__main__":
         torch.cuda.set_device(device)
     print('training on:', device)
 
-    invnet = InvNet(config.batch_size, config.output_path, config.data_dir,
-                         config.lr, config.critic_iter, config.proj_iter,
-                         config.hidden_size, device, config.lambda_gp, config.edge_fn, config.max_op)
+    invnet = GraphInvNet(config.batch_size, config.output_path, config.data_dir,
+                         config.lr, config.critic_iter, config.proj_iter, config.max_size, config.max_size,
+                         config.hidden_size, device, config.lambda_gp, config.edge_fn, config.max_op,config.make_pos,
+                         )
     invnet.train(config.end_iter)
