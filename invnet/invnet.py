@@ -1,4 +1,4 @@
-import math
+import os
 import os
 import time
 from timeit import default_timer as timer
@@ -17,7 +17,8 @@ from models.wgan import *
 
 class GraphInvNet:
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j, hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,restore_mode=False,hparams={}):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j,\
+                 hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,proj_lambda,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
         self.device = device
@@ -31,6 +32,7 @@ class GraphInvNet:
         self.max_i = max_i
         self.max_j = max_j
         self.lambda_gp = lambda_gp
+        self.proj_lambda=proj_lambda
 
         self.train_loader, self.val_loader = self.load_data()
         self.dataiter, self.val_iter = iter(self.train_loader), iter(self.val_loader)
@@ -47,7 +49,7 @@ class GraphInvNet:
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=ctrl_dim).to(device)
+            self.G = GoodGenerator(hidden_size, self.max_i*self.max_j, ctrl_dim=ctrl_dim).to(device)
             self.D = GoodDiscriminator(dim=hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
@@ -75,12 +77,12 @@ class GraphInvNet:
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-            if iteration%5==0:
+            if iteration%10==0:
                 stats['val_proj_err'], stats['val_critic_err'] = self.validation()
                 self.log(stats)
-            if iteration % 50 == 0:
-                self.save(stats)
                 print('iteration:', iteration)
+            if iteration % 20 == 0:
+                self.save(stats)
 
     def generator_update(self):
         start=timer()
@@ -135,7 +137,7 @@ class GraphInvNet:
             disc_fake = disc_fake.mean()
 
             # train with interpolates data
-            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,int(math.sqrt(self.output_dim)))
+            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,self.max_i)
 
             # final disc cost
             disc_cost = disc_fake - disc_real + gradient_penalty
@@ -157,7 +159,7 @@ class GraphInvNet:
         return stats
 
     def proj_update(self):
-        if not self.proj_iters:
+        if not (self.proj_iters and self.proj_lambda):
             return 0
         start=timer()
         real_data = self.sample()
@@ -170,7 +172,8 @@ class GraphInvNet:
             noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
             fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
-            pj_loss=self.proj_loss(fake_data,real_lengths)
+            print(self.proj_lambda)
+            pj_loss=self.proj_lambda*self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
             total_pj_loss+=pj_loss.cpu()
             self.optim_pj.step()
@@ -258,7 +261,7 @@ class GraphInvNet:
 
     def save(self,stats):
         #TODO split this into base saving actions and MNIST/DP specific saving stuff
-        size = int(math.sqrt(self.output_dim))
+        size = self.max_i
         fake_2 = stats['fake_data'].view(self.batch_size, -1, size, size)
         fake_2 = fake_2.int()
         fake_2 = fake_2.cpu().detach().clone()
@@ -301,13 +304,13 @@ class GraphInvNet:
         return proj_loss
 
     def load_data(self):
-        if 'morph' in self.data_dir:
+        if 'morph' in self.data_dir.lower():
             train_dir = self.data_dir + 'morph_global_64_train_255.h5'
             test_dir = self.data_dir + 'morph_global_64_valid_255.h5'
             # Returns train_loader and val_loader, both of pytorch DataLoader type
             train_data = MicrostructureDataset(train_dir)
             val_data = MicrostructureDataset(test_dir)
-        elif 'mnist' in self.data_dir:
+        elif 'mnist' in self.data_dir.lower():
             data_transform = transforms.Compose([
                 transforms.Resize(self.max_i),
                 # transforms.CenterCrop(64),
@@ -336,10 +339,12 @@ class GraphInvNet:
     def norm_data(self, data):
         #only used for saving
         data = data.view(-1, self.max_i, self.max_j)
-        if 'mnist' in self.data_dir:
+        if 'mnist' in self.data_dir.lower():
             mean = data.mean(dim=0)
             deviation = data.std(dim=0)
             return (data - mean) / (deviation/0.8)
         elif 'morph' in self.data_dir:
             data=torch.round(data)
             return data
+        else:
+            raise Exception('Unrecognized dataset')

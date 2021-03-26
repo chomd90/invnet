@@ -2,7 +2,7 @@
 
 import argparse
 
-from layers.graph_layer.edge_functions import edge_f_dict as d
+from dp_layer.graph_layer.edge_functions import edge_f_dict as d
 
 
 def get_parser(name):
@@ -32,10 +32,10 @@ class MNISTConfig(argparse.Namespace):
         parser.add_argument('--lambda_gp', default=10, help='gradient penalty hyperparameter')
         parser.add_argument('--restore_mode', default=False,
                             help='If True, it will load saved model from OUT_PATH and continue to train')
-
         parser.add_argument('--max_op', default=False)
         parser.add_argument('--edge_fn', default='diff_exp')
         parser.add_argument('--make_pos', type=bool,default=True)
+        parser.add_argument('--proj_lambda',type=float,default=1)
         return parser
 
     def __init__(self):
@@ -64,6 +64,7 @@ class MicroStructureConfig(argparse.Namespace):
         parser.add_argument('--max_op', default=False)
         parser.add_argument('--edge_fn', choices=list(d.keys()),default='diff_exp')
         parser.add_argument('--make_pos', type=bool, default=False)
+        parser.add_argument('--proj_lambda', type=float, default=1)
         return parser
 
     def __init__(self):

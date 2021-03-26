@@ -1,6 +1,6 @@
-#from micro_invnet import MicroConfig,MicroInvnet
 import torch
 
+# Toggle this to change experiment type
 from config import MNISTConfig as Config
 from invnet import GraphInvNet
 
@@ -15,7 +15,7 @@ if __name__=="__main__":
     print('training on:', device)
 
     invnet = GraphInvNet(config.batch_size, config.output_path, config.data_dir,
-                         config.lr, config.critic_iter, config.proj_iter, config.max_size, config.max_size,
-                         config.hidden_size, device, config.lambda_gp, config.edge_fn, config.max_op,config.make_pos,
-                         )
+                         config.lr, config.critic_iter, config.proj_iter, config.data_size, config.data_size,
+                         config.hidden_size, device, config.lambda_gp,1, config.edge_fn, config.max_op,config.make_pos,
+                         config.proj_lambda)
     invnet.train(config.end_iter)
