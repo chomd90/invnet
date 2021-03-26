@@ -1,6 +1,6 @@
 import torch
 
-from layers.dp_layer.adjacency_utils import compute_diff
+from layers.graph_layer.adjacency_utils import compute_diff
 
 
 def test_compute_diff():

@@ -1,8 +1,7 @@
 import pytest
 import torch
-from torchvision import transforms, datasets
-
 from layers import DPLayer
+from torchvision import transforms, datasets
 
 
 def make_data():

@@ -1,11 +1,10 @@
 import numpy as np
 import pytest
 import torch
+from layers.DPLayer import DPLayer
+from microstructure import utils
 from scipy.optimize import approx_fprime
 from torchvision import transforms, datasets
-
-from layers.dp_layer.DPLayer import DPLayer
-from microstructure import utils
 
 _epsilon = np.sqrt(np.finfo(float).eps)
 PARAMS=[('diff_squared',0),('sum_squared',0),('diff_squared',1),('sum_squared',1)]

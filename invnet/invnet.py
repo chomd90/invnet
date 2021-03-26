@@ -1,19 +1,24 @@
 import os
+import os
 import time
-from abc import ABC, abstractmethod
 from timeit import default_timer as timer
 
 import numpy as np
+import torch.nn.functional as F
+import torchvision
 from tensorboardX import SummaryWriter
+from torchvision import transforms, datasets
 
-from invnet import calc_gradient_penalty, \
-    weights_init
+from dp_layer import DPLayer
+from invnet.utils import calc_gradient_penalty, \
+    weights_init, MicrostructureDataset
 from models.wgan import *
 
 
-class BaseInvNet(ABC):
+class GraphInvNet:
 
-    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, output_dim, hidden_size, device, lambda_gp,ctrl_dim,restore_mode=False,hparams={}):
+    def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j,\
+                 hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,proj_lambda,restore_mode=False,hparams={}):
         self.writer = SummaryWriter()
         print('output dir:', self.writer.logdir)
         self.device = device
@@ -24,8 +29,10 @@ class BaseInvNet(ABC):
             os.makedirs(output_path)
 
         self.batch_size = batch_size
-        self.output_dim = output_dim
+        self.max_i = max_i
+        self.max_j = max_j
         self.lambda_gp = lambda_gp
+        self.proj_lambda=proj_lambda
 
         self.train_loader, self.val_loader = self.load_data()
         self.dataiter, self.val_iter = iter(self.train_loader), iter(self.val_loader)
@@ -36,12 +43,13 @@ class BaseInvNet(ABC):
                       'critic_iters': self.critic_iters})
         self.hparams=hparams
 
+        self.dp_layer = DPLayer(edge_fn, max_op, self.max_i,self.max_j , make_pos=make_pos)
 
         if restore_mode:
             self.D = torch.load(output_path + "generator.pt").to(device)
             self.G = torch.load(output_path + "discriminator.pt").to(device)
         else:
-            self.G = GoodGenerator(hidden_size, self.output_dim, ctrl_dim=ctrl_dim).to(device)
+            self.G = GoodGenerator(hidden_size, self.max_i*self.max_j, ctrl_dim=ctrl_dim).to(device)
             self.D = GoodDiscriminator(dim=hidden_size).to(device)
         self.G.apply(weights_init)
         self.D.apply(weights_init)
@@ -59,7 +67,6 @@ class BaseInvNet(ABC):
     def train(self, iters):
 
         for iteration in range(iters):
-            print('iteration:', iteration)
 
             gen_cost, real_p1 = self.generator_update()
             start_time = time.time()
@@ -70,10 +77,11 @@ class BaseInvNet(ABC):
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-            if iteration%5==0:
+            if iteration%10==0:
                 stats['val_proj_err'], stats['val_critic_err'] = self.validation()
                 self.log(stats)
-            if iteration % 50 == 0:
+                print('iteration:', iteration)
+            if iteration % 20 == 0:
                 self.save(stats)
 
     def generator_update(self):
@@ -93,8 +101,7 @@ class BaseInvNet(ABC):
             self.G.zero_grad()
             noise = self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad_(True)
-            fake_data = self.G(noise, real_p1)
-            fake_data = self.format_data(fake_data)
+            fake_data = self.G(noise, real_p1).view((-1,self.max_i,self.max_j))
             gen_cost = self.D(fake_data)
             gen_cost = gen_cost.mean()
             gen_cost = gen_cost.view((1))
@@ -130,7 +137,7 @@ class BaseInvNet(ABC):
             disc_fake = disc_fake.mean()
 
             # train with interpolates data
-            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,int(math.sqrt(self.output_dim)))
+            gradient_penalty = calc_gradient_penalty(self.D, real_images, fake_data, self.batch_size, self.lambda_gp,self.max_i)
 
             # final disc cost
             disc_cost = disc_fake - disc_real + gradient_penalty
@@ -152,7 +159,7 @@ class BaseInvNet(ABC):
         return stats
 
     def proj_update(self):
-        if not self.proj_iters:
+        if not (self.proj_iters and self.proj_lambda):
             return 0
         start=timer()
         real_data = self.sample()
@@ -165,7 +172,8 @@ class BaseInvNet(ABC):
             noise=self.gen_rand_noise(self.batch_size).to(self.device)
             noise.requires_grad=True
             fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
-            pj_loss=self.proj_loss(fake_data,real_lengths)
+            print(self.proj_lambda)
+            pj_loss=self.proj_lambda*self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
             total_pj_loss+=pj_loss.cpu()
             self.optim_pj.step()
@@ -213,8 +221,6 @@ class BaseInvNet(ABC):
         noise = noise.to(self.device)
         return noise
 
-    def format_data(self,data):
-        return data
 
     def sample(self,train=True):
         if train:
@@ -253,23 +259,92 @@ class BaseInvNet(ABC):
     def normalize_p1(self,p1):
         return (p1-self.p1_mean)/self.p1_std
 
-    @abstractmethod
-    def save(self, stats):
-        pass
+    def save(self,stats):
+        #TODO split this into base saving actions and MNIST/DP specific saving stuff
+        size = self.max_i
+        fake_2 = stats['fake_data'].view(self.batch_size, -1, size, size)
+        fake_2 = fake_2.int()
+        fake_2 = fake_2.cpu().detach().clone()
+        fake_2 = torchvision.utils.make_grid(fake_2, nrow=8, padding=2)
+        self.writer.add_image('G/images', fake_2, stats['iteration'])
 
-    @abstractmethod
-    def proj_loss(self,fake_data,real_p1):
-        pass
+        dev_proj_err, dev_disc_cost=self.validation()
+        #Generating images for tensorboard display
+        mean,std=self.p1_mean,self.p1_std
+        lv=torch.tensor([mean-std,mean,mean+std,mean+2*std]).view(-1,1).float().to(self.device)
+        with torch.no_grad():
+            noisev=self.fixed_noise
+            lv_v=lv
+        noisev=noisev.float()
+        gen_images=self.G(noisev,lv_v).view((4,-1,size,size))
+        gen_images = self.norm_data(gen_images)
+        real_images = stats['real_data']
+        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
+        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
+        real_grid_images = real_grid_images.long()
+        fake_grid_images = fake_grid_images.long()
+        self.writer.add_image('real images', real_grid_images, stats['iteration'])
+        self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
+        torch.save(self.G, self.output_path + 'generator.pt')
+        torch.save(self.D, self.output_path + 'discriminator.pt')
 
-    @abstractmethod
-    def real_p1(self,images):
-        pass
 
-    @abstractmethod
+        metric_dict = {'generator_cost': stats['gen_cost'],
+                       'discriminator_cost': dev_disc_cost ,'validation_projection_error': dev_proj_err}
+        self.writer.add_hparams(self.hparams, metric_dict,global_step=stats['iteration'])
+
+    #TODO check that this loss F.mse_loss is giving expected output
+    def proj_loss(self,fake_data,real_lengths):
+        #TODO Experiment with normalization
+        fake_data = fake_data.view((self.batch_size, self.max_i, self.max_j))
+        real_lengths=real_lengths.view((-1,1))
+
+        fake_lengths=self.real_p1(fake_data)
+        proj_loss=F.mse_loss(fake_lengths,real_lengths)
+        return proj_loss
+
     def load_data(self):
-        pass
+        if 'morph' in self.data_dir.lower():
+            train_dir = self.data_dir + 'morph_global_64_train_255.h5'
+            test_dir = self.data_dir + 'morph_global_64_valid_255.h5'
+            # Returns train_loader and val_loader, both of pytorch DataLoader type
+            train_data = MicrostructureDataset(train_dir)
+            val_data = MicrostructureDataset(test_dir)
+        elif 'mnist' in self.data_dir.lower():
+            data_transform = transforms.Compose([
+                transforms.Resize(self.max_i),
+                # transforms.CenterCrop(64),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.1307], std=[0.3801])
+            ])
+            data_dir = self.data_dir
+            print('data_dir:', data_dir)
+            mnist_data = datasets.MNIST(data_dir, download=True,
+                                        transform=data_transform)
+            train_data, val_data = torch.utils.data.random_split(mnist_data, [55000, 5000])
+        else:
+            raise Exception('Unknown Dataset')
+        train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
+        return train_loader,test_loader
 
-    @abstractmethod
-    def norm_data(self,data):
-        pass
+    def real_p1(self,images):
+        images=images.view((-1,self.max_i,self.max_j))
+        images=self.norm_data(images)
+        real_lengths=self.dp_layer(images).view(-1,1)
+        if self.p1_mean is not None:
+            real_lengths=self.normalize_p1(real_lengths)
+        return real_lengths
 
+    def norm_data(self, data):
+        #only used for saving
+        data = data.view(-1, self.max_i, self.max_j)
+        if 'mnist' in self.data_dir.lower():
+            mean = data.mean(dim=0)
+            deviation = data.std(dim=0)
+            return (data - mean) / (deviation/0.8)
+        elif 'morph' in self.data_dir:
+            data=torch.round(data)
+            return data
+        else:
+            raise Exception('Unrecognized dataset')
