@@ -31,9 +31,9 @@ class GraphInvNet:
         else:
             raise Exception('Unknown dataset')
         now = datetime.now()
-        hparams = '%s_pl:%d_' % (self.dataset, proj_lambda)
-        self.output_path = './runs/' + hparams + now.strftime('%m:%d:%H:%S')
-
+        hparams = '_%s_pl:%s' % (self.dataset, str(proj_lambda))
+        self.output_path = './runs/' + now.strftime('%m-%d:%H:%S') + hparams
+        print('output path:',self.output_path)
         self.writer = SummaryWriter(self.output_path)
         self.device = device
 
@@ -90,7 +90,7 @@ class GraphInvNet:
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-            if iteration%10==0:
+            if iteration%1==0:
                 stats['val_proj_err'], stats['val_critic_err'] = self.validation()
                 self.log(stats)
                 print('iteration:', iteration)
@@ -228,7 +228,7 @@ class GraphInvNet:
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['val_proj_err'],stats['iteration'])
 
-        lib.plot.plot(self.output_path + '/_disc_cost.png', stats['val_critic_err'])
+        lib.plot.plot(self.output_path + '/disc_cost.png', stats['val_critic_err'])
         lib.plot.plot(self.output_path + '/val_proj_err.png', stats['val_proj_err'].cpu().numpy())
         lib.plot.plot(self.output_path + '/gen_cost.png', stats['gen_cost'].detach().cpu().numpy())
         lib.plot.flush()
