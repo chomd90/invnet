@@ -32,7 +32,7 @@ class GraphInvNet:
             raise Exception('Unknown dataset')
         now = datetime.now()
         hparams = '_%s_pl:%s' % (self.dataset, str(proj_lambda))
-        self.output_path = './runs/' + now.strftime('%m-%d:%H:%S') + hparams
+        self.output_path = './runs/' + now.strftime('%m-%d:%H:%M') + hparams
         print('output path:',self.output_path)
         self.writer = SummaryWriter(self.output_path)
         self.device = device
