@@ -1,7 +1,7 @@
 import torch
 
 # Toggle this to change experiment type
-from config import MNISTConfig as Config
+from config import MicroStructureConfig as Config
 from invnet import GraphInvNet
 
 if __name__=="__main__":
@@ -9,7 +9,6 @@ if __name__=="__main__":
 
     cuda_available = torch.cuda.is_available()
     device = torch.device(config.gpu if cuda_available else "cpu")
-    device = "cuda:0"
     if cuda_available:
         torch.cuda.set_device(device)
     print('training on:', device)

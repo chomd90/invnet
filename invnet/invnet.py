@@ -9,8 +9,6 @@ import torchvision
 from tensorboardX import SummaryWriter
 from torchvision import transforms, datasets
 
-import libs as lib
-import libs.plot
 from dp_layer import DPLayer
 from invnet.utils import calc_gradient_penalty, \
     weights_init, MicrostructureDataset
@@ -22,8 +20,7 @@ class GraphInvNet:
     def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j,\
                  hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,proj_lambda,restore_mode=False):
 
-
-        #create output path and summary writer
+        #create output path and summary write
         if 'mnist' in data_dir.lower():
             self.dataset = 'mnist'
         elif 'morph' in data_dir.lower():
@@ -75,6 +72,10 @@ class GraphInvNet:
         self.p1_mean, self.p1_std = None,None
         self.p1_mean, self.p1_std = self.get_p1_stats()
 
+        self.disc_cost=[]
+        self.val_proj_err=[]
+        self.gen_cost=[]
+
         self.start = timer()
 
     def train(self, iters):
@@ -90,15 +91,14 @@ class GraphInvNet:
                          'gen_cost': gen_cost,
                          'proj_cost': proj_cost}
             stats.update(add_stats)
-            if iteration%1==0:
+            if iteration%10==0:
                 stats['val_proj_err'], stats['val_critic_err'] = self.validation()
                 self.log(stats)
                 print('iteration:', iteration)
             if iteration % 20 == 0:
                 self.save(stats)
-        torch.save(self.G, self.output_path + '/generator.pt')
-        torch.save(self.D, self.output_path + '/discriminator.pt')
-
+                torch.save(self.G, self.output_path + '/generator.pt')
+                torch.save(self.D, self.output_path + '/discriminator.pt')
 
     def generator_update(self):
         for p in self.D.parameters():
@@ -228,11 +228,9 @@ class GraphInvNet:
         self.writer.add_scalar('data/gradient_pen', stats['gradient_penalty'], stats['iteration'])
         self.writer.add_scalar('data/proj_error',stats['val_proj_err'],stats['iteration'])
 
-        lib.plot.plot(self.output_path + '/disc_cost.png', stats['val_critic_err'])
-        lib.plot.plot(self.output_path + '/val_proj_err.png', stats['val_proj_err'].cpu().numpy())
-        lib.plot.plot(self.output_path + '/gen_cost.png', stats['gen_cost'].detach().cpu().numpy())
-        lib.plot.flush()
-        lib.plot.tick()
+        self.disc_cost.append(float(stats['val_critic_err']))
+        self.val_proj_err.append(stats['val_proj_err'].cpu().item())
+        self.gen_cost.append(float(stats['gen_cost'].detach().cpu().item()))
 
     def save(self,stats):
         #TODO split this into base saving actions and MNIST/DP specific saving stuff
@@ -248,18 +246,25 @@ class GraphInvNet:
         lv=torch.tensor([mean-std,mean,mean+std,mean+2*std]).view(-1,1).float().to(self.device)
         with torch.no_grad():
             noisev=self.fixed_noise
-            lv_v=lv
+            lv_v=self.normalize_p1(lv)
         noisev=noisev.float()
         gen_images=self.G(noisev,lv_v).view((4,-1,size,size))
-        gen_images = self.norm_data(gen_images)
-        real_images = stats['real_data']
-        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=8, padding=2)
-        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=8, padding=2)
+        gen_images = self.norm_data(gen_images).unsqueeze(1)
+        real_images = self.norm_data(stats['real_data']).unsqueeze(1)
+        real_grid_images = torchvision.utils.make_grid(real_images[:4], nrow=4, padding=2,pad_value=1)
+        fake_grid_images = torchvision.utils.make_grid(gen_images, nrow=4, padding=2,pad_value=1)
         real_grid_images = real_grid_images.long()
         fake_grid_images = fake_grid_images.long()
         self.writer.add_image('real images', real_grid_images, stats['iteration'])
         self.writer.add_image('fake images', fake_grid_images, stats['iteration'])
 
+        disc_cost=np.array(self.disc_cost)
+        val_proj_err=np.array(self.val_proj_err)
+        gen_cost=np.array(self.gen_cost)
+
+        np.savetxt(self.output_path+'/disc_cost.txt',disc_cost)
+        np.savetxt(self.output_path+'/val_proj_err.txt', val_proj_err)
+        np.savetxt(self.output_path+'/gen_cost.txt', gen_cost)
 
     def gen_rand_noise(self,batch_size=None):
         if batch_size is None:
@@ -317,13 +322,13 @@ class GraphInvNet:
         return proj_loss
 
     def load_data(self):
-        if 'morph' in self.data_dir.lower():
+        if self.dataset=='morph':
             train_dir = self.data_dir + 'morph_global_64_train_255.h5'
             test_dir = self.data_dir + 'morph_global_64_valid_255.h5'
             # Returns train_loader and val_loader, both of pytorch DataLoader type
             train_data = MicrostructureDataset(train_dir)
             val_data = MicrostructureDataset(test_dir)
-        elif 'mnist' in self.data_dir.lower():
+        elif self.dataset=='mnist':
             data_transform = transforms.Compose([
                 transforms.Resize(self.max_i),
                 # transforms.CenterCrop(64),
@@ -335,29 +340,19 @@ class GraphInvNet:
             mnist_data = datasets.MNIST(data_dir, download=True,
                                         transform=data_transform)
             train_data, val_data = torch.utils.data.random_split(mnist_data, [55000, 5000])
-        else:
-            raise Exception('Unknown Dataset')
         train_loader = torch.utils.data.DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
         test_loader = torch.utils.data.DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
         return train_loader,test_loader
 
     def real_p1(self,images):
         images=images.view((-1,self.max_i,self.max_j))
-        images=self.norm_data(images)
         real_lengths=self.dp_layer(images).view(-1,1)
         if self.p1_mean is not None:
             real_lengths=self.normalize_p1(real_lengths)
         return real_lengths
 
     def norm_data(self, data):
-        #only used for saving
         data = data.view(-1, self.max_i, self.max_j)
-        if 'mnist' in self.data_dir.lower():
-            mean = data.mean(dim=0)
-            deviation = data.std(dim=0)
-            return (data - mean) / (deviation/0.8)
-        elif 'morph' in self.data_dir:
-            data=torch.round(data)
-            return data
-        else:
-            raise Exception('Unrecognized dataset')
+        mean = data.mean(dim=0)
+        deviation = data.std(dim=0)
+        return (data - mean) / (deviation)
