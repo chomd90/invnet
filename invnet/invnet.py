@@ -18,13 +18,13 @@ from models.wgan import *
 class GraphInvNet:
 
     def __init__(self, batch_size, output_path, data_dir, lr, critic_iters, proj_iters, max_i,max_j,\
-                 hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,proj_lambda,restore_mode=False):
+                 hidden_size, device, lambda_gp,ctrl_dim,edge_fn,max_op,make_pos,proj_lambda,top2bottom=False,restore_mode=False):
 
         #create output path and summary write
         if 'mnist' in data_dir.lower():
             self.dataset = 'mnist'
         elif 'morph' in data_dir.lower():
-            self.dataset = 'micro'
+            self.dataset = 'morph'
         else:
             raise Exception('Unknown dataset')
         now = datetime.now()
@@ -52,7 +52,7 @@ class GraphInvNet:
         self.critic_iters = critic_iters
         self.proj_iters = proj_iters
 
-        self.dp_layer = DPLayer(edge_fn, max_op, self.max_i,self.max_j , make_pos=make_pos)
+        self.dp_layer = DPLayer(edge_fn, max_op, self.max_i,self.max_j , make_pos=make_pos,top2bottom=top2bottom)
         self.proj_lambda = proj_lambda
 
         if restore_mode:
