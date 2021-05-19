@@ -127,7 +127,7 @@ class GraphInvNet:
 
         end=timer()
         # print('--generator update elapsed time:',end-start)
-        return gen_cost, real_p1
+        return gen_cost.detach(), real_p1.detach()
 
     def critic_update(self):
         for p in self.D.parameters():  # reset requires_grad
@@ -162,15 +162,15 @@ class GraphInvNet:
             self.optim_d.step()
         end = timer()
         # print('---train D elapsed time:', end - start)
-        stats={'w_dist': w_dist,
-               'disc_cost':disc_cost,
-               'fake_data':fake_data[:100],
+        stats={'w_dist': w_dist.detach(),
+               'disc_cost':disc_cost.detach(),
+               'fake_data':fake_data[:100].detach(),
                'real_data':real_images[:4],
-               'disc_real':disc_real,
-               'disc_fake':disc_fake,
-               'gradient_penalty':gradient_penalty,
-               'real_p1_avg':real_p1.mean(),
-                'real_p1_std':real_p1.std()}
+               'disc_real':disc_real.detach(),
+               'disc_fake':disc_fake.detach(),
+               'gradient_penalty':gradient_penalty.detach(),
+               'real_p1_avg':real_p1.mean().detach(),
+                'real_p1_std':real_p1.std().detach()}
         return stats
 
     def proj_update(self):
@@ -189,7 +189,7 @@ class GraphInvNet:
             fake_data = self.G(noise, real_lengths).view((self.batch_size,self.max_i,self.max_j))
             pj_loss=self.proj_lambda*self.proj_loss(fake_data,real_lengths)
             pj_loss.backward()
-            total_pj_loss+=pj_loss.cpu()
+            total_pj_loss+=pj_loss.cpu().detach()
             self.optim_pj.step()
 
         end=timer()
